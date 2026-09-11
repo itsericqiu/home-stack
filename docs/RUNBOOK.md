@@ -628,6 +628,14 @@ portable/home-stack/scripts/service-launchd.sh restart tinyauth
 
 ### Hermes (commit-pinned only)
 
+> Observed 2026-09: `install.sh --commit <sha>` can leave the checkout on the
+> tip of `main` rather than the requested commit. `hs upgrade hermes` pins the
+> checkout explicitly and verifies `HEAD`; if you run the installer by hand,
+> follow it with `git -C ~/.hermes/hermes-agent checkout --detach <sha>` and
+> reinstall the extras. After restarting, run `hermes gateway start` so Hermes
+> regenerates its own gateway plist (it reports "stale" otherwise), and allow
+> the first boot a minute — it rebuilds the web UI before listening.
+
 `hs upgrade hermes --to <full-sha> --yes` runs exactly the procedure below; it
 refuses a tag or any ref shorter than a full 40-character commit, and refuses
 to run at all without `--yes` since it mutates `~/.hermes`. `--dry-run` prints
