@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>Label</key>
+	<string>test.epsilon.home-stack.tinyauth</string>
+	<key>ProgramArguments</key>
+	<array>
+		<string>__WORK__/repo-epsilon/portable/home-stack/scripts/run-tinyauth.sh</string>
+	</array>
+	<key>EnvironmentVariables</key>
+	<dict>
+		<key>HOME_STACK_DATA_DIR</key>
+		<string>__WORK__/owner-epsilon/.config/home-stack/data/tinyauth</string>
+		<key>HOME_STACK_PROFILE</key>
+		<string>epsilon</string>
+		<key>HOME_STACK_SELF_HOST</key>
+		<string>auth.home.epsilon.test</string>
+		<key>HOME_STACK_SELF_NAME</key>
+		<string>tinyauth</string>
+		<key>HOME_STACK_SELF_URL</key>
+		<string>https://auth.home.epsilon.test</string>
+	</dict>
+	<key>RunAtLoad</key>
+	<true/>
+	<key>KeepAlive</key>
+	<true/>
+	<key>StandardOutPath</key>
+	<string>__WORK__/owner-epsilon/.config/home-stack/logs/tinyauth.launchd.out.log</string>
+	<key>StandardErrorPath</key>
+	<string>__WORK__/owner-epsilon/.config/home-stack/logs/tinyauth.launchd.err.log</string>
+</dict>
+</plist>

@@ -1,6 +1,7 @@
 # Change Log
 
 - Unreleased:
+  - **`hs upgrade` and the `install:` registry manifest** (pulled by need — Pocket ID, tinyauth, Caddy, and Hermes had no reviewed upgrade procedure beyond a RUNBOOK recipe): added an optional `install:` block to `Service` (`method`, `source`, `pin`, `version_cmd`, `asset`, `binary`), validated against a closed method enum (`github-release`, `xcaddy`, `source-go`, `npm-global`, `opencode`, `hermes-pinned`, `brew`) and carried unmodified into `catalog.json`. Added `hs upgrade status` (live/pinned/latest drift table, `--check` for a non-zero exit on drift) and `hs upgrade <service> [--to <version>] [--dry-run]` (`portable/home-stack/scripts/lib/upgrade.sh`), with a fully reviewed per-method procedure — backup, install, restart, health check, auto-revert on failure — for `github-release` (Pocket ID), `source-go` (tinyauth), `npm-global` (OpenChamber), and `opencode`; `xcaddy` (Caddy) builds and stages but stops short of restarting the system LaunchDaemon without `sudo`; `hermes-pinned` requires `--yes` and a full commit SHA. `hs doctor` gains a pin-drift warning. Added commented `install:` examples to `profiles/default/services.yaml` and `tests/hs-upgrade.test.sh`.
 
 - 0.3.0 (2026-09-10) — public baseline (see docs/PUBLIC_RELEASE.md).
   - **Public release, Phase B (docs scrub and split)**: removed deployment

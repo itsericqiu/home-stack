@@ -1,0 +1,57 @@
+services:
+  caddy:
+    display_name: "Caddy Ingress"
+    kind: "ingress"
+    type: "system"
+    subdomain: "*"
+    install:
+      method: xcaddy
+      source: "caddyserver/caddy"
+      pin: "v2.8.4"
+      version_cmd: "bin/caddy-cloudflare version"
+      binary: "bin/caddy-cloudflare"
+
+  admin:
+    display_name: "Epsilon Admin"
+    kind: "control"
+    type: "proxy"
+    upstream: "127.0.0.1:35510"
+    subdomain: admin
+
+  # install: coverage. pocket-id carries every github-release field (asset
+  # pattern with {version}/{arch} placeholders); tinyauth carries source-go
+  # with no pin yet (pin is deployment state, optional here); task-svc has no
+  # install: block at all, to prove an absent block stays unaffected.
+  pocket-id:
+    display_name: "Pocket ID"
+    kind: "auth"
+    lifecycle: managed
+    type: "proxy"
+    upstream: "127.0.0.1:35520"
+    subdomain: id
+    install:
+      method: github-release
+      source: "pocket-id/pocket-id"
+      pin: "v1.9.0"
+      version_cmd: "pocket-id --version"
+      asset: "pocket-id_darwin_{arch}"
+      binary: "bin/pocket-id"
+
+  tinyauth:
+    display_name: "Tinyauth Broker"
+    kind: "auth"
+    lifecycle: managed
+    type: "proxy"
+    upstream: "127.0.0.1:35521"
+    subdomain: auth
+    install:
+      method: source-go
+      source: "tinyauthapp/tinyauth"
+      version_cmd: "bin/tinyauth --version"
+      binary: "bin/tinyauth"
+
+  task-svc:
+    display_name: "Task Service"
+    kind: "task"
+    type: "task"
+    binary: "/usr/bin/true"

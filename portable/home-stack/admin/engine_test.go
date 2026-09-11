@@ -1150,6 +1150,127 @@ func TestGenerateLaunchdPlistDataDirHonoursConfigDirOverride(t *testing.T) {
 	}
 }
 
+// --- install: field ----------------------------------------------------------
+
+func TestValidateInstallAcceptsEveryMethod(t *testing.T) {
+	for _, method := range []string{"github-release", "xcaddy", "source-go", "npm-global", "opencode", "hermes-pinned", "brew"} {
+		t.Run(method, func(t *testing.T) {
+			svc := Service{Type: "task", Binary: "/usr/bin/true", Install: &InstallSpec{
+				Method: method,
+				Source: "acme/widget",
+			}}
+			if method == "github-release" {
+				svc.Install.Asset = "widget_darwin_{arch}"
+				svc.Install.Binary = "bin/widget"
+			}
+			r := &Registry{Services: map[string]Service{"widget": svc}}
+			if err := r.Validate("home.example.com"); err != nil {
+				t.Fatalf("install.method %q should be valid, got: %v", method, err)
+			}
+		})
+	}
+}
+
+func TestValidateInstallRejectsUnknownMethod(t *testing.T) {
+	r := &Registry{Services: map[string]Service{
+		"widget": {Type: "task", Binary: "/usr/bin/true", Install: &InstallSpec{Method: "curl-and-pray", Source: "acme/widget"}},
+	}}
+	err := r.Validate("home.example.com")
+	if err == nil {
+		t.Fatal("expected unknown install.method to be rejected")
+	}
+	if !strings.Contains(err.Error(), "widget") {
+		t.Errorf("error should name the service, got: %v", err)
+	}
+}
+
+func TestValidateInstallRequiresSource(t *testing.T) {
+	r := &Registry{Services: map[string]Service{
+		"widget": {Type: "task", Binary: "/usr/bin/true", Install: &InstallSpec{Method: "npm-global"}},
+	}}
+	if err := r.Validate("home.example.com"); err == nil {
+		t.Fatal("expected missing install.source to be rejected")
+	}
+}
+
+func TestValidateInstallGithubReleaseRequiresAssetAndBinary(t *testing.T) {
+	r := &Registry{Services: map[string]Service{
+		"widget": {Type: "task", Binary: "/usr/bin/true", Install: &InstallSpec{Method: "github-release", Source: "acme/widget"}},
+	}}
+	err := r.Validate("home.example.com")
+	if err == nil {
+		t.Fatal("expected github-release without asset/binary to be rejected")
+	}
+
+	r = &Registry{Services: map[string]Service{
+		"widget": {Type: "task", Binary: "/usr/bin/true", Install: &InstallSpec{Method: "github-release", Source: "acme/widget", Asset: "widget_{arch}"}},
+	}}
+	if err := r.Validate("home.example.com"); err == nil {
+		t.Fatal("expected github-release without binary to be rejected")
+	}
+}
+
+func TestValidateInstallOtherMethodsDoNotRequireAssetOrBinary(t *testing.T) {
+	r := &Registry{Services: map[string]Service{
+		"widget": {Type: "task", Binary: "/usr/bin/true", Install: &InstallSpec{Method: "npm-global", Source: "widget-cli"}},
+	}}
+	if err := r.Validate("home.example.com"); err != nil {
+		t.Fatalf("npm-global should not require asset/binary, got: %v", err)
+	}
+}
+
+func TestValidateInstallRejectsControlCharacters(t *testing.T) {
+	r := &Registry{Services: map[string]Service{
+		"widget": {Type: "task", Binary: "/usr/bin/true", Install: &InstallSpec{Method: "npm-global", Source: "widget\ncli"}},
+	}}
+	if err := r.Validate("home.example.com"); err == nil {
+		t.Fatal("expected control characters in install.source to be rejected")
+	}
+}
+
+func TestValidateAllowsAbsentInstall(t *testing.T) {
+	r := &Registry{Services: map[string]Service{
+		"widget": {Type: "task", Binary: "/usr/bin/true"},
+	}}
+	if err := r.Validate("home.example.com"); err != nil {
+		t.Fatalf("a service with no install: block should validate fine, got: %v", err)
+	}
+}
+
+func TestInstallRoundTripsThroughCatalog(t *testing.T) {
+	r := &Registry{Services: map[string]Service{
+		"pocket-id": {
+			Type: "proxy", Subdomain: "id", Upstream: "127.0.0.1:31520",
+			Install: &InstallSpec{
+				Method:     "github-release",
+				Source:     "pocket-id/pocket-id",
+				Pin:        "v1.9.0",
+				VersionCmd: "pocket-id --version",
+				Asset:      "pocket-id_darwin_{arch}",
+				Binary:     "bin/pocket-id",
+			},
+		},
+	}}
+	catalog := buildCatalog(r, "home.example.com")
+	entry, ok := catalog["pocket-id"]
+	if !ok || entry.Install == nil {
+		t.Fatal("expected catalog to carry the install: block")
+	}
+	if entry.Install.Method != "github-release" || entry.Install.Pin != "v1.9.0" {
+		t.Fatalf("catalog install block does not match source: %+v", entry.Install)
+	}
+
+	data, err := json.Marshal(entry)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	for _, want := range []string{`"method":"github-release"`, `"source":"pocket-id/pocket-id"`, `"pin":"v1.9.0"`, `"version_cmd":"pocket-id --version"`} {
+		if !strings.Contains(string(data), want) {
+			t.Errorf("catalog JSON missing %q: %s", want, data)
+		}
+	}
+}
+
 // desiredArtifacts resolves configDir itself via envOr("HOME_STACK_CONFIG_DIR", ...),
 // the same fallback GenerateSystemDaemonPlist already uses, so an override
 // set in the environment reaches the agent plist too.

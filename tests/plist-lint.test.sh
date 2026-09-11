@@ -35,7 +35,7 @@ else
 fi
 echo "Using linter: $LINTER"
 
-for fixture in acme beta gamma delta; do
+for fixture in acme beta gamma delta epsilon; do
   echo "Checking fixture: $fixture"
   
   # Stage the fixture

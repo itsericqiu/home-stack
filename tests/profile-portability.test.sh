@@ -8,7 +8,7 @@ set -euo pipefail
 
 REPO_ROOT="$(cd -- "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 ADMIN_DIR="$REPO_ROOT/portable/home-stack/admin"
-FIXTURES=(acme beta gamma delta)
+FIXTURES=(acme beta gamma delta epsilon)
 
 # shellcheck source=tests/lib/hygiene-patterns.sh
 . "$REPO_ROOT/tests/lib/hygiene-patterns.sh"

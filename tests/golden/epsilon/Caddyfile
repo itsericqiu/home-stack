@@ -1,0 +1,36 @@
+{
+	email admin@epsilon.test
+	log {
+		level WARN
+	}
+}
+
+(cloudflare_tls) {
+	tls {
+		dns cloudflare {env.CLOUDFLARE_API_TOKEN}
+	}
+}
+
+*.home.epsilon.test {
+	bind 100.64.0.46
+	import cloudflare_tls
+
+	@admin host admin.home.epsilon.test
+	handle @admin {
+		reverse_proxy 127.0.0.1:35510
+	}
+
+	@pocket_id host id.home.epsilon.test
+	handle @pocket_id {
+		reverse_proxy 127.0.0.1:35520
+	}
+
+	@tinyauth host auth.home.epsilon.test
+	handle @tinyauth {
+		reverse_proxy 127.0.0.1:35521
+	}
+
+	handle {
+		abort
+	}
+}

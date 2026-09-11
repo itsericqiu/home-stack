@@ -7,7 +7,7 @@ set -euo pipefail
 
 REPO_ROOT="$(cd -- "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 GOLDEN_ROOT="$REPO_ROOT/tests/golden"
-FIXTURES=(acme beta gamma delta)
+FIXTURES=(acme beta gamma delta epsilon)
 
 ADMIN_DIR="$REPO_ROOT/portable/home-stack/admin"
 
