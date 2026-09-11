@@ -10,6 +10,17 @@ services:
     subdomain: "*"
     health:
       port: 443
+    # install: tracks `hs upgrade` for the xcaddy-built binary (see
+    # docs/RUNBOOK.md "Upgrade Workflow"). `pin` is deployment-specific --
+    # set it in your own profile once you've reviewed a Caddy release, not
+    # here. `hs upgrade caddy` builds via xcaddy, validates against your
+    # generated Caddyfile, and restarts the daemon (needs sudo).
+    # install:
+    #   method: xcaddy
+    #   source: "caddyserver/caddy"
+    #   pin: "v2.8.4"
+    #   version_cmd: "bin/caddy-cloudflare version"
+    #   binary: "bin/caddy-cloudflare"
 
   admin:
     display_name: "Home Stack Admin"
@@ -51,6 +62,17 @@ services:
   #   health:
   #     port: 31520
   #     http_url: "http://127.0.0.1:31520/healthz"
+  #   # install: pocket-id ships prebuilt GitHub release binaries -- see
+  #   # docs/RUNBOOK.md "Install Pocket ID". {version}/{arch} in `asset` are
+  #   # substituted by `hs upgrade` (version without a leading "v"; arch is
+  #   # arm64 or amd64 from uname).
+  #   install:
+  #     method: github-release
+  #     source: "pocket-id/pocket-id"
+  #     pin: "v1.9.0"
+  #     version_cmd: "pocket-id --version"
+  #     asset: "pocket-id_darwin_{arch}"
+  #     binary: "bin/pocket-id"
   #
   # tinyauth:
   #   display_name: "Tinyauth Broker"
@@ -63,6 +85,16 @@ services:
   #   health:
   #     port: 31521
   #     http_url: "http://127.0.0.1:31521/healthz"
+  #   # install: upstream ships Linux binaries only, so this is built from
+  #   # source -- see docs/RUNBOOK.md "Build tinyauth". `hs upgrade tinyauth`
+  #   # clones the pinned tag, builds the frontend with corepack pnpm, then
+  #   # `go build`s the same way the RUNBOOK recipe does.
+  #   install:
+  #     method: source-go
+  #     source: "tinyauthapp/tinyauth"
+  #     pin: "v5.1.3"
+  #     version_cmd: "bin/tinyauth --version"
+  #     binary: "bin/tinyauth"
 
   # Example service entries below. None of these ship a binary — each is
   # the operator's to build or install; uncomment and adjust once you have
@@ -85,6 +117,16 @@ services:
   #   health:
   #     port: 31511
   #     http_url: "https://hermes.home.example.com/api/status"
+  #   # install: Hermes is commit-pinned, never a moving tag -- see
+  #   # docs/RUNBOOK.md "Hermes (commit-pinned only)". `hs upgrade hermes`
+  #   # refuses anything but a full 40-char commit SHA via --to, and needs
+  #   # --yes since it mutates ~/.hermes (config backup, pinned installer,
+  #   # web/pty extras, config check, restart, /api/status verification).
+  #   install:
+  #     method: hermes-pinned
+  #     source: "NousResearch/hermes-agent"
+  #     pin: "3f9a1c2e5b7d0648a19cfe2d6b4a8f01c3e5d7a9"
+  #     version_cmd: "git -C ~/.hermes/hermes-agent rev-parse HEAD"
   #
   # OpenCode: an internal backend with no Caddy route of its own — only
   # OpenChamber (below) proxies to it directly, so it has no `subdomain`.
@@ -96,6 +138,14 @@ services:
   #   upstream: "127.0.0.1:31496"
   #   health:
   #     port: 31496
+  #   # install: the opencode CLI ships its own self-updater. `hs upgrade
+  #   # opencode` runs `opencode upgrade` (with a version argument only if
+  #   # the installed CLI documents one); `source` here is the npm package
+  #   # `hs upgrade status` checks for the latest published version.
+  #   install:
+  #     method: opencode
+  #     source: "opencode-ai"
+  #     version_cmd: "opencode --version"
   #
   # OpenChamber: the web UI in front of OpenCode, routed at its own
   # subdomain.
@@ -108,6 +158,12 @@ services:
   #   subdomain: opencode
   #   health:
   #     port: 31497
+  #   # install: an npm-global package. `hs upgrade openchamber` runs
+  #   # `npm install -g <source>@<version>`, restarts, and health-checks.
+  #   install:
+  #     method: npm-global
+  #     source: "openchamber"
+  #     version_cmd: "openchamber --version"
   #
   # Dev gateway: a wildcard dev-host proxy for local development domains.
   # The binary builds from portable/home-stack/dev-gateway; left disabled

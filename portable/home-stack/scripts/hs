@@ -44,6 +44,8 @@ usage() {
   echo "  service add       Add a new service to the registry"
   echo "  service remove    Remove a service from the registry"
   echo "  deploy            Preview and apply registry changes"
+  echo "  upgrade status    Show install: drift (live/pinned/latest) for tracked services"
+  echo "  upgrade <name>    Run the reviewed upgrade procedure for a service's install: method"
   echo "  init              Initialize Home Stack environment"
   echo "  logs <name>       Tail logs for a service"
   echo
@@ -231,6 +233,32 @@ cmd_doctor() {
   else
     _gum_fail; echo "Binary MISSING: home-stack-admin ($admin_bin) — build with 'make build-admin' from the repo root"
     errs=$((errs+1))
+  fi
+
+  # ── Section 6b: install: pin drift ───────────────────────────────────────
+  # Best-effort: warns, never fails, and only runs once catalog.json exists
+  # (the first `hs sync`). See docs/SERVICE_INTERFACE.md §4d.
+  local catalog_path="$HOME_STACK_BUNDLE_DIR/catalog.json"
+  if [[ -f "$catalog_path" ]]; then
+    . "$SCRIPT_DIR/lib/upgrade.sh"
+    local pinned_services
+    pinned_services=$(home_stack_upgrade_services_with_install 2>/dev/null || true)
+    local svc_name
+    while IFS= read -r svc_name; do
+      [[ -z "$svc_name" ]] && continue
+      local pin version_cmd live
+      pin=$(home_stack_upgrade_install_field "$svc_name" pin 2>/dev/null || echo "")
+      [[ -z "$pin" ]] && continue
+      version_cmd=$(home_stack_upgrade_install_field "$svc_name" version_cmd 2>/dev/null || echo "")
+      live=$(home_stack_upgrade_live_version "$version_cmd" 2>/dev/null || echo "")
+      if [[ -z "$live" ]]; then
+        _gum_warn; echo "$svc_name: could not read live version to compare against install.pin $pin"
+      elif [[ "$live" == "$pin" || "$live" == "${pin#v}" ]]; then
+        _gum_ok; echo "$svc_name matches pinned version $pin"
+      else
+        _gum_warn; echo "$svc_name live version $live does not match install.pin $pin — see 'hs upgrade status'"
+      fi
+    done <<< "$pinned_services"
   fi
 
   # ── Section 7: Tailnet ────────────────────────────────────────────────────
@@ -542,6 +570,19 @@ print(json.dumps({'action':'registry.add','target':'$name','confirm':True,'servi
   echo "Run 'hs deploy' to apply changes."
 }
 
+cmd_upgrade() {
+  . "$SCRIPT_DIR/lib/upgrade.sh"
+  if [[ $# -eq 0 ]]; then
+    echo "Usage: hs upgrade status [--check]" >&2
+    echo "       hs upgrade <service> [--to <version>] [--dry-run] [--yes]" >&2
+    return 2
+  fi
+  case "$1" in
+    status) shift; home_stack_upgrade_status "$@" ;;
+    *) home_stack_upgrade_apply "$@" ;;
+  esac
+}
+
 cmd_service_remove() {
   local name="${1:-}"
   [[ -z "$name" ]] && { echo "Usage: hs service remove <name>"; exit 1; }
@@ -569,6 +610,7 @@ case "$ARG1" in
     ;;
   service) shift; cmd_service_manage "$@"; exit 0 ;;
   deploy) shift; cmd_deploy "$@"; exit 0 ;;
+  upgrade) shift; cmd_upgrade "$@"; exit 0 ;;
   *)
     # ARG1 is not a known first-level command. The only other legitimate
     # shape is the reversed `hs <service_name> <command>` form (ARG2 is a

@@ -1,0 +1,109 @@
+{
+  "admin": {
+    "DisplayName": "Epsilon Admin",
+    "Kind": "control",
+    "Type": "proxy",
+    "Subdomain": "admin",
+    "Host": "",
+    "Upstream": "127.0.0.1:35510",
+    "Root": "",
+    "Args": null,
+    "WorkingDir": "",
+    "Env": null,
+    "Health": {
+      "Port": 0,
+      "HTTPURL": ""
+    },
+    "url": "https://admin.home.epsilon.test"
+  },
+  "caddy": {
+    "DisplayName": "Caddy Ingress",
+    "Kind": "ingress",
+    "Type": "system",
+    "Subdomain": "*",
+    "Host": "",
+    "Upstream": "",
+    "Root": "",
+    "Args": null,
+    "WorkingDir": "",
+    "Env": null,
+    "Health": {
+      "Port": 0,
+      "HTTPURL": ""
+    },
+    "install": {
+      "method": "xcaddy",
+      "source": "caddyserver/caddy",
+      "pin": "v2.8.4",
+      "version_cmd": "bin/caddy-cloudflare version",
+      "binary": "bin/caddy-cloudflare"
+    }
+  },
+  "pocket-id": {
+    "DisplayName": "Pocket ID",
+    "Kind": "auth",
+    "Type": "proxy",
+    "Subdomain": "id",
+    "Host": "",
+    "Upstream": "127.0.0.1:35520",
+    "Root": "",
+    "lifecycle": "managed",
+    "Args": null,
+    "WorkingDir": "",
+    "Env": null,
+    "Health": {
+      "Port": 0,
+      "HTTPURL": ""
+    },
+    "url": "https://id.home.epsilon.test",
+    "install": {
+      "method": "github-release",
+      "source": "pocket-id/pocket-id",
+      "pin": "v1.9.0",
+      "version_cmd": "pocket-id --version",
+      "asset": "pocket-id_darwin_{arch}",
+      "binary": "bin/pocket-id"
+    }
+  },
+  "task-svc": {
+    "DisplayName": "Task Service",
+    "Kind": "task",
+    "Type": "task",
+    "Subdomain": "",
+    "Host": "",
+    "Upstream": "",
+    "Root": "",
+    "binary": "/usr/bin/true",
+    "Args": null,
+    "WorkingDir": "",
+    "Env": null,
+    "Health": {
+      "Port": 0,
+      "HTTPURL": ""
+    }
+  },
+  "tinyauth": {
+    "DisplayName": "Tinyauth Broker",
+    "Kind": "auth",
+    "Type": "proxy",
+    "Subdomain": "auth",
+    "Host": "",
+    "Upstream": "127.0.0.1:35521",
+    "Root": "",
+    "lifecycle": "managed",
+    "Args": null,
+    "WorkingDir": "",
+    "Env": null,
+    "Health": {
+      "Port": 0,
+      "HTTPURL": ""
+    },
+    "url": "https://auth.home.epsilon.test",
+    "install": {
+      "method": "source-go",
+      "source": "tinyauthapp/tinyauth",
+      "version_cmd": "bin/tinyauth --version",
+      "binary": "bin/tinyauth"
+    }
+  }
+}

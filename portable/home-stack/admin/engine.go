@@ -51,6 +51,114 @@ type Service struct {
 	// predates this field) is distinguishable from an explicit false. nil
 	// means enabled — see IsEnabled.
 	Enabled *bool `yaml:"enabled,omitempty" json:"enabled,omitempty"`
+	// Install is the migration/upgrade manifest for a service whose binary is
+	// operator-installed rather than vendored: how it got there, what it is
+	// pinned to, and how to read its live version. It drives `hs upgrade`
+	// (scripts/lib/upgrade.sh) and `hs doctor`'s pin-drift check. Absent means
+	// the service is not upgrade-tracked (nothing changes for it). The catalog
+	// carries this block unmodified so the shell reads it from catalog.json
+	// the same way it already reads `url` — see home_stack_service_url.
+	Install *InstallSpec `yaml:"install,omitempty" json:"install,omitempty"`
+}
+
+// installMethod is the closed set of ways an operator-installed binary got
+// onto the bundle. Like auth: and proxy_identity:, this is a fixed idiom, not
+// a free-form directive surface: `hs upgrade` has one reviewed procedure per
+// method, hand-written in scripts/lib/upgrade.sh, and an unrecognized method
+// has no procedure to run.
+type installMethod = string
+
+const (
+	installMethodGithubRelease installMethod = "github-release"
+	installMethodXcaddy        installMethod = "xcaddy"
+	installMethodSourceGo      installMethod = "source-go"
+	installMethodNpmGlobal     installMethod = "npm-global"
+	installMethodOpencode      installMethod = "opencode"
+	installMethodHermesPinned  installMethod = "hermes-pinned"
+	installMethodBrew          installMethod = "brew"
+)
+
+// InstallSpec is the optional per-service migration/upgrade manifest. Pins
+// are deployment-specific (the reviewed target version for THIS host), so
+// they live in the owner's profile like every other identity value, not in
+// profiles/default/services.yaml's examples.
+type InstallSpec struct {
+	// Method selects which of scripts/lib/upgrade.sh's reviewed procedures
+	// applies. Closed enum -- see installMethod* above.
+	Method string `yaml:"method" json:"method"`
+	// Source is a repo ("owner/repo"), npm package name, or Homebrew formula,
+	// depending on Method. Always required: every method needs to know what
+	// upstream thing it is comparing/fetching against.
+	Source string `yaml:"source" json:"source"`
+	// Pin is the reviewed target version, tag, or full commit -- deployment
+	// state, so it is optional here (a registry entry may track upgrades
+	// without yet declaring a reviewed pin) but expected to be set in a real
+	// profile once an operator has reviewed a version.
+	Pin string `yaml:"pin,omitempty" json:"pin,omitempty"`
+	// VersionCmd is a shell command whose first line of output names the
+	// live version (extracted by scripts/lib/upgrade.sh via regex: a
+	// dotted-numeric version or a 7-40 hex commit). Run with the bundle
+	// bin/ and PATH prepended, never with HOME_STACK_* secrets.
+	VersionCmd string `yaml:"version_cmd,omitempty" json:"version_cmd,omitempty"`
+	// Asset is the github-release asset name pattern, e.g.
+	// "pocket-id_darwin_{arch}" -- {version} and {arch} are substituted by
+	// scripts/lib/upgrade.sh before matching it against the release's assets.
+	// Required (with Binary) for method: github-release only.
+	Asset string `yaml:"asset,omitempty" json:"asset,omitempty"`
+	// Binary is where the installed artifact lives, relative to the bundle
+	// directory (e.g. "bin/pocket-id"). Required for github-release; used by
+	// xcaddy and source-go too, but Validate does not enforce it there since
+	// those methods' procedures fail loudly on their own if it is missing.
+	Binary string `yaml:"binary,omitempty" json:"binary,omitempty"`
+}
+
+// validMethods for InstallSpec.Method, in error-message order.
+var installMethods = []string{
+	installMethodGithubRelease,
+	installMethodXcaddy,
+	installMethodSourceGo,
+	installMethodNpmGlobal,
+	installMethodOpencode,
+	installMethodHermesPinned,
+	installMethodBrew,
+}
+
+// validateInstall enforces the closed method enum, the fields every method
+// needs (source), and the fields only github-release's procedure can run
+// without (asset, binary -- it has no other way to know what to download or
+// where to put it).
+func validateInstall(serviceName string, in *InstallSpec) error {
+	if in == nil {
+		return nil
+	}
+	valid := false
+	for _, m := range installMethods {
+		if in.Method == m {
+			valid = true
+			break
+		}
+	}
+	if !valid {
+		return fmt.Errorf("service %q install.method %q is not one of %s", serviceName, in.Method, strings.Join(installMethods, ", "))
+	}
+	if err := validateToken("install.source", in.Source, false); err != nil {
+		return fmt.Errorf("service %q invalid %w", serviceName, err)
+	}
+	if err := validateToken("install.pin", in.Pin, true); err != nil {
+		return fmt.Errorf("service %q invalid %w", serviceName, err)
+	}
+	if err := validateToken("install.version_cmd", in.VersionCmd, true); err != nil {
+		return fmt.Errorf("service %q invalid %w", serviceName, err)
+	}
+	if in.Method == installMethodGithubRelease {
+		if err := validateToken("install.asset", in.Asset, false); err != nil {
+			return fmt.Errorf("service %q invalid %w (required for install.method: github-release)", serviceName, err)
+		}
+		if err := validateToken("install.binary", in.Binary, false); err != nil {
+			return fmt.Errorf("service %q invalid %w (required for install.method: github-release)", serviceName, err)
+		}
+	}
+	return nil
 }
 
 // ResolvedHost returns the FQDN this service occupies under parentDomain.
@@ -428,6 +536,9 @@ func (r *Registry) Validate(parentDomain string) error {
 			if err := validateToken("env value", value, true); err != nil {
 				return fmt.Errorf("service %q invalid env value for %q: %w", name, key, err)
 			}
+		}
+		if err := validateInstall(name, svc.Install); err != nil {
+			return err
 		}
 	}
 	// A disabled auth broker is not caught by the per-service auth: sso /

@@ -182,6 +182,49 @@ Five things worth knowing:
   `desiredArtifacts`/`writeArtifacts` pipeline, and `Apply` generates and
   prunes the daemon plist too (previously agent plists only).
 
+## 4d. Upgrade manifest (`install:`)
+
+A registry entry opts into `hs upgrade` tracking with one optional block, in
+the same closed-enum idiom as `auth:`. Pins are deployment state — the
+reviewed target version for *this* host — so a real pin lives in the owner's
+profile; `profiles/default/services.yaml`'s examples carry the block
+commented out with realistic values and no live pin.
+
+```yaml
+    install:
+      method: github-release   # github-release | xcaddy | source-go | npm-global | opencode | hermes-pinned | brew
+      source: "pocket-id/pocket-id"          # repo, npm package, or brew formula
+      pin: "v2.14.0"                         # reviewed target; optional, deployment-specific
+      version_cmd: "pocket-id --version"     # how to read the live version; first line, regex-extracted
+      asset: "pocket-id_darwin_{arch}"       # github-release only; {version}/{arch} substituted
+      binary: "bin/pocket-id"                # installed artifact path, relative to the bundle
+```
+
+`method` is a closed enum; an unrecognized value is rejected. `source` is
+always required. `pin` and `version_cmd` are optional. `asset` and `binary`
+are required only for `method: github-release` — the other methods' `hs
+upgrade` procedures fail loudly on their own if they need a binary path and
+none was given, rather than the registry enforcing it.
+
+- `hs upgrade status` renders one row per `install:`-carrying service: live
+  version (`version_cmd`, run with the bundle `bin/` and `PATH`), `pin`,
+  latest upstream (looked up per `method`), and a `DRIFT` verdict (`ok` /
+  `behind` / `ahead-of-pin` / `unknown`). Exits 0 always; `--check` exits 1 if
+  anything is `behind`.
+- `hs upgrade <service> [--to <version>] [--dry-run]` runs that method's
+  reviewed procedure (`scripts/lib/upgrade.sh`): resolve the target,
+  fetch/build, verify, swap the binary (backing up the previous one),
+  restart, health-check, and auto-revert on failure. Fully automated for
+  `github-release`, `source-go`, and `npm-global`. `xcaddy` (Caddy is the
+  system daemon) stops and prints the exact `sudo` command rather than
+  restarting itself. `hermes-pinned` requires a full commit SHA via `--to`
+  (never a tag) and `--yes` (it mutates `~/.hermes`). `brew` is status-only;
+  use `brew upgrade <formula>`.
+- `hs doctor` compares live version against `pin` for every `install:`
+  service that has one, and warns (never fails) on a mismatch.
+- The catalog carries the block unmodified (same JSON field names) — see
+  `docs/RUNBOOK.md` → "Upgrade Workflow" for the procedures in full.
+
 ## 5. Persistence & State
 *   **Standard Data Dir:** Stateful apps SHOULD store their data (SQLite, JSON, etc.) in a directory provided by the `HOME_STACK_DATA_DIR` environment variable, unless preserving the application's established user state location is an explicit integration requirement.
 *   **Location:** Home Stack standardizes this to `~/.config/home-stack/data/<service_name>/`.
@@ -255,4 +298,3 @@ implemented (see `docs/ROADMAP.md`):
 |---|---|---|
 | `remote:` | omitted / `none` / `access` | `access`: also serve `<name>.remote.<parent>` behind Cloudflare Access, verified at origin. Denied by kind for control/agent/auth/backend/ingress. Requires `remote_aud:`. (P3, `docs/REMOTE_ACCESS.md`) |
 | `remote_aud:` | Access application AUD tag | Non-secret; required with `remote: access`. (P3) |
-| `install:` | `method`, `source`, `pin`, `version_cmd` | Drives `hs upgrade status`. (P5) |

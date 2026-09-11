@@ -557,18 +557,81 @@ portable/home-stack/scripts/install-helpers.sh --with-ops
 ## Upgrade Workflow
 
 Home-stack services are launchd-supervised, so upgrades must update the binary
-launchd actually runs and then restart or reload intentionally.
-
-Check current versions:
+launchd actually runs and then restart or reload intentionally. Every service
+that carries an `install:` block in the registry (see
+`docs/SERVICE_INTERFACE.md` §4d) is tracked by `hs upgrade`, which is the
+starting point for all of the below:
 
 ```bash
-hs-status
-command -v opencode && opencode --version
-command -v openchamber && openchamber --version
-portable/home-stack/bin/caddy-cloudflare version
+hs upgrade status            # live / pinned / latest / drift, one row per install:-tracked service
+hs upgrade status --check    # same, but exits 1 if anything is "behind" (for a cron/doctor check)
+hs upgrade <service> --dry-run   # print the exact steps and resolved URLs/paths, touch nothing
+hs upgrade <service> [--to <version>]
 ```
 
-Hermes (commit-pinned only):
+`hs upgrade` runs one reviewed procedure per `install.method`, implemented in
+`portable/home-stack/scripts/lib/upgrade.sh`. It backs up the previous binary
+(`.prev`), verifies the new one where it can, restarts the service, waits for
+its registry health signal, and **auto-reverts** on a failed health check. What
+each method actually does, and what still needs a human, is documented per
+service below — read this before running the command on an identity-layer
+service for the first time.
+
+| Method | Automated by `hs upgrade` | Still manual |
+|---|---|---|
+| `github-release` (Pocket ID) | Resolve tag, download, checksum (if published), swap with `.prev`, verify `version_cmd`, restart, health check, revert on failure | Reviewing the release notes before running it |
+| `xcaddy` (Caddy) | Build with the two plugins, `caddy adapt` against the live Caddyfile, swap with `.prev` | Restarting the daemon: Caddy is a LaunchDaemon, so `hs upgrade caddy` stops and prints the exact `sudo launchctl kickstart` command rather than restarting itself |
+| `source-go` (tinyauth) | Clone at tag, `corepack pnpm` build the frontend, `go build`, swap with `.prev`, restart, health check, revert on failure | Re-checking upstream release notes (5.1.3 was itself a security fix) |
+| `npm-global` (OpenChamber) | `npm install -g <pkg>@<version>`, restart, health check | Rollback (no `.prev` for a global npm package — reinstall the previous version by hand) |
+| `opencode` | `opencode upgrade`, restart, health check | Nothing beyond reviewing what changed |
+| `hermes-pinned` (Hermes) | The exact pinned-installer procedure below, gated behind `--yes` and a full commit SHA | Everything here is already a human-reviewed step by design — see below |
+| `brew` | Status/drift only (`brew info --json=v2`) | The upgrade itself: run `brew upgrade <formula>` |
+
+The rest of this section is what each command above actually runs, for the
+services with a reviewed procedure worth reading in full.
+
+### Pocket ID
+
+`hs upgrade pocket-id` is `github-release` end to end: resolves the latest (or
+`--to`) tag, downloads `pocket-id_darwin_{arch}`, verifies it against the
+release's `checksums.txt` when one is published (loudly warns if not), backs
+up the current binary to `.prev`, installs, confirms `pocket-id --version`
+reports the target, restarts, and waits on its `/healthz` check — reverting
+automatically if that fails. Equivalent by hand, per the original install
+recipe:
+
+```bash
+VER=$(gh release view -R pocket-id/pocket-id --json tagName -q .tagName)
+gh release download -R pocket-id/pocket-id "$VER" -p pocket-id_darwin_arm64 -p checksums.txt -D /tmp
+shasum -a 256 -c <(grep pocket-id_darwin_arm64 /tmp/checksums.txt)
+cp portable/home-stack/bin/pocket-id portable/home-stack/bin/pocket-id.prev
+install -m 0755 /tmp/pocket-id_darwin_arm64 portable/home-stack/bin/pocket-id
+portable/home-stack/scripts/service-launchd.sh restart pocket-id
+```
+
+### tinyauth
+
+`hs upgrade tinyauth` is `source-go`: clones the target tag, builds the
+frontend, `go build`s it exactly like the original from-source recipe below,
+swaps with `.prev`, restarts, and health-checks — reverting on failure. Always
+re-read the release notes before picking a tag; 5.1.3 was itself a fix for a
+path-handling access-control bypass.
+
+```bash
+git clone --depth 1 --branch v5.1.3 https://github.com/tinyauthapp/tinyauth /tmp/tinyauth-src
+cd /tmp/tinyauth-src/frontend && corepack pnpm install --frozen-lockfile && corepack pnpm run build
+cd .. && cp -r frontend/dist internal/assets/
+CGO_ENABLED=0 GOOS=darwin GOARCH=arm64 go build -tags nomsgpack -ldflags "-s -w" \
+  -o portable/home-stack/bin/tinyauth ./cmd/tinyauth
+portable/home-stack/scripts/service-launchd.sh restart tinyauth
+```
+
+### Hermes (commit-pinned only)
+
+`hs upgrade hermes --to <full-sha> --yes` runs exactly the procedure below; it
+refuses a tag or any ref shorter than a full 40-character commit, and refuses
+to run at all without `--yes` since it mutates `~/.hermes`. `--dry-run` prints
+every step without touching anything.
 
 1. Review the new official tag, full commit, and that commit's `install.sh`.
    Do not use a moving `main` installer or `hermes update` for production.
@@ -607,16 +670,20 @@ Keychain password, scrypt hash, and signing secret. If a wrapper or registry
 change caused the failure, restore that source change, run `hs sync`, reinstall
 only the changed generated plist, and verify before loading.
 
-OpenChamber:
+### OpenChamber
+
+`hs upgrade openchamber` runs:
 
 ```bash
-openchamber update
+npm install -g openchamber@<version>
 portable/home-stack/scripts/service-launchd.sh restart openchamber
 openchamber --version
 portable/home-stack/scripts/status-launchd.sh
 ```
 
-OpenCode:
+### OpenCode
+
+`hs upgrade opencode` runs:
 
 ```bash
 opencode upgrade
@@ -625,7 +692,14 @@ opencode --version
 portable/home-stack/scripts/status-launchd.sh
 ```
 
-Caddy:
+### Caddy
+
+`hs upgrade caddy` builds the binary below, `caddy adapt`s it against the
+live Caddyfile, and swaps it with `.prev` — then stops and prints the exact
+`sudo launchctl kickstart -k system/<identifier-prefix>.home-stack.caddy`
+command, because restarting the system LaunchDaemon needs privileges Admin
+and `hs` do not run with. Run that command yourself once you're ready to cut
+over:
 
 ```bash
 go install github.com/caddyserver/xcaddy/cmd/xcaddy@latest
@@ -636,7 +710,8 @@ CGO_ENABLED=0 GOARCH="$(uname -m | sed -e 's/^x86_64$/amd64/' -e 's/^aarch64$/ar
     --with github.com/tailscale/caddy-tailscale \
     --output portable/home-stack/bin/caddy-cloudflare
 CLOUDFLARE_API_TOKEN=dummy portable/home-stack/bin/caddy-cloudflare adapt --config portable/home-stack/Caddyfile
-portable/home-stack/scripts/service-launchd.sh restart caddy
+sudo launchctl kickstart -k system/<identifier-prefix>.home-stack.caddy
+```
 
 ## Identity Layer
 

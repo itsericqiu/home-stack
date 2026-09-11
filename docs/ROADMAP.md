@@ -33,7 +33,7 @@ designed and parked. The Admin webapp is frozen at v1.
 | P2 ✓ | Tenant-ready registry: `enabled:`; engine-injected `HOME_STACK_SELF_*` and `HOME_STACK_DATA_DIR`; retire dead env flags and duplicate hostname vars; isolate `make test` from the production binary | P1 | **yes** — generation | `docs/PLAN.md` §3.2 |
 | P3 | Reliability: prefix-isolated launchd tests on the host; verify or fix the known lifecycle bugs; finish `deploy.apply` converge; sleep/reboot runbook and `hs doctor` checks | P2 | **yes** — launchd | `docs/PLAN.md` §3.10, §3.3 |
 | P4 | Migration: the outside-git inventory, one documented export command, a reinstall table per component | P3 | no (docs) + small script | `docs/PLAN.md` §3.11 |
-| Pulled by need | `hs upgrade caddy` (first Caddy upgrade); a shared notifier (when a second client — Hermes approvals — is being built); remote access (when an app must be reached without Tailscale); dev gateway (when a workflow wants it) | — | yes | `docs/PLAN.md` §3.6, §3.12, §3.4/`docs/REMOTE_ACCESS.md`, §3.5 |
+| Pulled by need | `hs upgrade` ✓ (delivered — see below); a shared notifier (when a second client — Hermes approvals — is being built); remote access (when an app must be reached without Tailscale); dev gateway (when a workflow wants it) | — | yes | `docs/PLAN.md` §3.6, §3.12, §3.4/`docs/REMOTE_ACCESS.md`, §3.5 |
 
 Tenant apps onboard themselves against the contract when they are ready;
 home-stack's obligation is that the contract is real (P2) and the onboarding
@@ -138,8 +138,21 @@ from whichever tenant already has one.
   helpers if a workflow ever wants them.
 - **Admin webapp** — frozen at v1. Bug fixes only; `hs` plus Hermes are the
   operator surface. Basic Auth stays as break-glass (`docs/SECURITY_MODEL.md`).
-- **Upgrade tooling** — `hs upgrade caddy` the first time Caddy needs
-  upgrading; everything else is Homebrew or the reinstall table.
+
+### Upgrade tooling (`hs upgrade`) ✓ — delivered 2026-09-10
+
+Pulled by need: four operator-installed components (Pocket ID, tinyauth,
+Caddy, Hermes) had no reviewed upgrade procedure beyond a RUNBOOK recipe, and
+OpenCode/OpenChamber's self-updaters were run by hand with no drift
+visibility. The registry gained an optional `install:` block
+(`docs/SERVICE_INTERFACE.md` §4d) and `hs upgrade status` / `hs upgrade
+<service>` (`portable/home-stack/scripts/lib/upgrade.sh`) turn each RUNBOOK
+recipe into a reviewed, scriptable procedure with a backup, a health check,
+and an auto-revert on failure. Fully automated: `github-release` (Pocket ID),
+`source-go` (tinyauth), `npm-global` (OpenChamber), `opencode`. Still manual
+by design: `xcaddy` (Caddy) stops short of the daemon restart, which needs
+`sudo`; `hermes-pinned` requires `--yes` and a full commit SHA, since it
+mutates `~/.hermes`; `brew` is status-only (`brew upgrade <formula>` by hand).
 
 ## Historical Context
 
