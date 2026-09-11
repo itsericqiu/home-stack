@@ -777,7 +777,7 @@ home_stack_upgrade_hermes_pinned() {
     return 1
   fi
 
-  if ! "$hermes_home/bin/hermes" config check; then
+  if ! "$hermes_home/hermes-agent/venv/bin/hermes" config check; then
     echo "hermes config check failed -- review the config migration before restarting" >&2
     return 1
   fi
