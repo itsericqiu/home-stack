@@ -69,7 +69,9 @@ EXCLUDE_REGEX='^(profiles/default/|tests/fixtures/|tests/golden/)'
 # repository that is expected to.
 
 # The repo's own public URL is allowed to name itself.
-ALLOWED_SUBSTRING='github.com/itsericqiu/home-stack'
+# The repository owner's own GitHub URLs (this repo and its sibling home-portal)
+# are public by definition and may appear anywhere.
+ALLOWED_SUBSTRING='github.com/itsericqiu/'
 
 
 while IFS= read -r -d '' f; do
