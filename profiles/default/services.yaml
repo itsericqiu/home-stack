@@ -70,7 +70,8 @@ services:
   #     method: github-release
   #     source: "pocket-id/pocket-id"
   #     pin: "v1.9.0"
-  #     version_cmd: "pocket-id --version"
+  #     # pocket-id validates config before any subcommand; a dummy key lets `version` run.
+  #     version_cmd: "ENCRYPTION_KEY=00000000000000000000000000000000 pocket-id version"
   #     asset: "pocket-id_darwin_{arch}"
   #     binary: "bin/pocket-id"
   #

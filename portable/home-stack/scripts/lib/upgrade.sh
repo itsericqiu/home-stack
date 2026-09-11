@@ -157,7 +157,10 @@ home_stack_upgrade_live_version() {
   local version_cmd="$1"
   [[ -z "$version_cmd" ]] && return 1
   local out
-  out="$(PATH="$HOME_STACK_BUNDLE_DIR/bin:$PATH" bash -c "$version_cmd" 2>/dev/null | head -1)" || true
+  # Clean environment on purpose: a version probe must not inherit the loaded
+  # stack environment (secrets, or app settings that change what a binary does
+  # at startup). PATH and HOME only.
+  out="$(env -i PATH="$HOME_STACK_BUNDLE_DIR/bin:$PATH" HOME="$HOME" bash -c "$version_cmd" 2>/dev/null | head -1)" || true
   [[ -z "$out" ]] && return 1
   home_stack_upgrade_extract_version "$out"
 }
