@@ -41,8 +41,9 @@ turns into the Caddyfile, launchd plists, and a discovery catalog.
   origin. New registry entries appear automatically without exposing Admin
   credentials, diagnostics, process identifiers, filesystem paths, or
   mutation actions. This repository ships only the minimal static fallback
-  page for that origin; a richer Portal app is an external consumer of the
-  published schemas (`schemas/portal/`), not something shipped here.
+  page for that origin; the richer Portal PWA lives in its own repository,
+  [home-portal](https://github.com/itsericqiu/home-portal), as an external
+  consumer of the published schemas (`schemas/portal/`).
 - **An optional identity layer**: Pocket ID (passkey-only OIDC) and tinyauth
   (a login broker) can sit behind the ingress so services opt into zero-click
   tailnet identity, brokered sessions, or both, per the registry's `auth:`
@@ -106,11 +107,15 @@ for the full manual path.
 
 ## What runs out of the box vs. what is an example
 
-Out of the box: Caddy, the Admin control plane, and the static Portal
-fallback page. Everything else in `profiles/default/services.yaml` — Hermes,
-OpenCode/OpenChamber, Pocket ID, tinyauth, a dev gateway — is an **example
-registry entry**, meant to show the shape of a real service declaration, not
-something this repository installs for you. Enable, remove, or replace any of
+Out of the box: Caddy and the Admin control plane — the two uncommented
+entries in `profiles/default/services.yaml`. Everything else in that file —
+a Portal (the shipped fallback page, or the
+[home-portal](https://github.com/itsericqiu/home-portal) PWA), Hermes,
+OpenCode/OpenChamber, Pocket ID, tinyauth, a dev gateway — is a commented
+**example registry entry**, meant to show the shape of a real service
+declaration, not something this repository installs for you. The Portal entry
+must be named `portal`: that is the name the engine attaches the two
+projection routes to. Enable, remove, or replace any of
 them; the registry doesn't care which services exist, only that they satisfy
 `docs/SERVICE_INTERFACE.md`.
 

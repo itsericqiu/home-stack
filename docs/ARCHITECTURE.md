@@ -73,7 +73,8 @@ If a new artifact varies with the registry, it belongs in the engine.
 
 ## Portal And Admin Boundary
 
-- Portal is for discovery/navigation and should live in a separate app repo, for example `~/github/home-portal`.
+- Portal is for discovery/navigation and lives in a separate app repo ([home-portal](https://github.com/itsericqiu/home-portal)); this repo ships only a static fallback page.
+- The registry entry that serves the Portal origin **must be named `portal`**: the engine attaches the two `/.well-known/home-stack/` projection routes to that service name and no other.
 - `portable/home-stack/portal-www` is a minimal fallback landing page.
 - Admin is a privileged Tailnet control plane at `admin.home.example.com`.
 - Admin and Portal must remain separate because Admin has mutation privileges and a stronger security boundary.

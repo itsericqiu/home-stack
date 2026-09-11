@@ -34,7 +34,7 @@ It will:
 
 1. Clone the repository.
 2. Build the custom Caddy binary with xcaddy + the Cloudflare DNS plugin (see `docs/RUNBOOK.md` §"Build Caddy").
-3. Build the admin binary: `cd portable/home-stack/admin && go build -o home-stack-admin .`.
+3. Build the admin binary: `make build-admin` (the only target that writes the production binary path).
 4. Run `portable/home-stack/scripts/hs init [<name>]`. This scaffolds:
    - `profiles/<name>/home-stack.env` (copied from `profiles/default/`)
    - `profiles/<name>/services.yaml`
