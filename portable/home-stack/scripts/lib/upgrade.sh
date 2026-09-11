@@ -772,6 +772,18 @@ home_stack_upgrade_hermes_pinned() {
     return 1
   fi
 
+  # install.sh --commit has been observed to leave the checkout on the tip of
+  # main rather than the requested commit. Pin explicitly and verify, so the
+  # deployed tree is exactly the reviewed one.
+  if ! git -C "$hermes_home/hermes-agent" checkout -q --detach "$to"; then
+    echo "hermes: could not check out pinned commit $to" >&2
+    return 1
+  fi
+  local head_sha; head_sha="$(git -C "$hermes_home/hermes-agent" rev-parse HEAD)"
+  if [[ "$head_sha" != "$to" ]]; then
+    echo "hermes: checkout is $head_sha, expected $to" >&2
+    return 1
+  fi
   if ! ( cd "$hermes_home/hermes-agent" && "$hermes_home/bin/uv" pip install --python venv/bin/python -e '.[web,pty]' ); then
     echo "hermes web/pty extras install failed" >&2
     return 1
@@ -783,6 +795,18 @@ home_stack_upgrade_hermes_pinned() {
   fi
 
   home_stack_upgrade_restart "$name"
+  # First boot of a new Hermes rebuilds TUI deps and the web UI; give the
+  # dashboard real time before judging the listener.
+  local waited=0
+  until curl -fsS -m 3 -o /dev/null "http://${HOME_STACK_TAILNET_IP}:${HOME_STACK_HERMES_PORT:-31511}/api/status" 2>/dev/null || [[ $waited -ge 180 ]]; do
+    sleep 5; waited=$((waited + 5))
+  done
+  echo "hermes dashboard answered after ~${waited}s"
+  # The upstream-generated gateway plist embeds runtime paths; after an
+  # upgrade Hermes reports it stale until regenerated. Refresh it the way the
+  # app owner prescribes (2026-08-12 decision: Hermes owns that plist).
+  "$hermes_home/hermes-agent/venv/bin/hermes" gateway start >/dev/null 2>&1 || true
+  "$hermes_home/hermes-agent/venv/bin/hermes" gateway status 2>/dev/null | sed 's/\x1b\[[0-9;]*m//g' | grep -E "Service definition|supervised" || true
 
   local status_url
   status_url="$(home_stack_upgrade_health_field "$name" http_url 2>/dev/null || true)"
