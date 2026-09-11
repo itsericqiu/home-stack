@@ -1,0 +1,31 @@
+{
+	email admin@delta.test
+	log {
+		level WARN
+	}
+}
+
+(cloudflare_tls) {
+	tls {
+		dns cloudflare {env.CLOUDFLARE_API_TOKEN}
+	}
+}
+
+*.home.delta.test {
+	bind 100.64.0.45
+	import cloudflare_tls
+
+	@admin host admin.home.delta.test
+	handle @admin {
+		reverse_proxy 127.0.0.1:34510
+	}
+
+	@enabled_app host enabled-app.home.delta.test
+	handle @enabled_app {
+		reverse_proxy 127.0.0.1:34701
+	}
+
+	handle {
+		abort
+	}
+}

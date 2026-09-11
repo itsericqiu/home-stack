@@ -1,0 +1,31 @@
+{
+	email admin@acme.test
+	log {
+		level WARN
+	}
+}
+
+(cloudflare_tls) {
+	tls {
+		dns cloudflare {env.CLOUDFLARE_API_TOKEN}
+	}
+}
+
+*.home.acme.test {
+	bind 100.64.0.42
+	import cloudflare_tls
+
+	@admin host admin.home.acme.test
+	handle @admin {
+		reverse_proxy 127.0.0.1:31510
+	}
+
+	@external host external.acme-cdn.test
+	handle @external {
+		reverse_proxy 127.0.0.1:31000
+	}
+
+	handle {
+		abort
+	}
+}

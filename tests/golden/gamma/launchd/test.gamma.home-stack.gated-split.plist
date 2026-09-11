@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>Label</key>
+	<string>test.gamma.home-stack.gated-split</string>
+	<key>ProgramArguments</key>
+	<array>
+		<string>__WORK__/repo-gamma/portable/home-stack/scripts/run-gated-split.sh</string>
+	</array>
+	<key>EnvironmentVariables</key>
+	<dict>
+		<key>HOME_STACK_DATA_DIR</key>
+		<string>__WORK__/owner-gamma/.config/home-stack/data/gated-split</string>
+		<key>HOME_STACK_PROFILE</key>
+		<string>gamma</string>
+		<key>HOME_STACK_SELF_HOST</key>
+		<string>gated-split.home.gamma.test</string>
+		<key>HOME_STACK_SELF_NAME</key>
+		<string>gated-split</string>
+		<key>HOME_STACK_SELF_URL</key>
+		<string>https://gated-split.home.gamma.test</string>
+	</dict>
+	<key>RunAtLoad</key>
+	<true/>
+	<key>KeepAlive</key>
+	<true/>
+	<key>StandardOutPath</key>
+	<string>__WORK__/owner-gamma/.config/home-stack/logs/gated-split.launchd.out.log</string>
+	<key>StandardErrorPath</key>
+	<string>__WORK__/owner-gamma/.config/home-stack/logs/gated-split.launchd.err.log</string>
+</dict>
+</plist>

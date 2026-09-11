@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:home-stack:schemas:catalog:v1",
+  "title": "Home Stack Portal Catalog v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "generated_at", "services"],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "generated_at": { "type": "string", "format": "date-time" },
+    "services": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "display_name", "kind", "url", "scope", "lifecycle", "launchable"],
+        "properties": {
+          "id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$" },
+          "display_name": { "type": "string", "minLength": 1 },
+          "kind": { "type": "string", "minLength": 1 },
+          "url": { "type": ["string", "null"], "format": "uri" },
+          "scope": { "enum": ["tailnet", "local", "external"] },
+          "lifecycle": { "enum": ["managed", "external", "static", "system"] },
+          "launchable": { "type": "boolean" }
+        }
+      }
+    }
+  }
+}

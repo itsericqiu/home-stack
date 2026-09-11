@@ -1,0 +1,591 @@
+#!/usr/bin/env bash
+# Home Stack Unified CLI
+set -euo pipefail
+
+# Resolve the real path of this script even if invoked through a symlink
+SCRIPT_SOURCE="${BASH_SOURCE[0]:-$0}"
+while [ -h "$SCRIPT_SOURCE" ]; do
+  LINK="$(readlink "$SCRIPT_SOURCE")"
+  if [[ "$LINK" == /* ]]; then
+    SCRIPT_SOURCE="$LINK"
+  else
+    SCRIPT_SOURCE="$(dirname "$SCRIPT_SOURCE")/$LINK"
+  fi
+done
+SCRIPT_DIR="$(cd -- "$(dirname "$SCRIPT_SOURCE")" && pwd)"
+. "$SCRIPT_DIR/lib/common.sh"
+
+# `init` and `doctor` must run even when the profile is incomplete or missing —
+# that is the whole point of those subcommands. Every other entry point loads
+# the profile contract up front and fails fast if mandatory vars are absent.
+case "${1:-}" in
+  init|doctor) ;;
+  *) home_stack_load_env ;;
+esac
+
+# Admin CLI transport is private loopback. Keep the password in the loaded
+# process environment and never place it in arguments, generated artifacts, or
+# output beyond curl's in-memory Basic Auth construction.
+ADMIN_URL="${HOME_STACK_ADMIN_URL:-http://127.0.0.1:$HOME_STACK_ADMIN_PORT}"
+ADMIN_PASS="${HOME_STACK_ADMIN_PASSWORD:-}"
+
+usage() {
+  echo "Usage: hs <command> <service_name|all>"
+  echo "       hs <service_name> <command>"
+  echo
+  echo "Commands:"
+  echo "  sync              Sync system state from registry (runs admin engine locally)"
+  echo "  status            Show status of all services"
+  echo "  start             Start a service"
+  echo "  stop              Stop a service"
+  echo "  restart           Restart a service"
+  echo "  reload            Reload Caddy config (only for Caddy)"
+  echo "  doctor            Check system health and dependencies"
+  echo "  service add       Add a new service to the registry"
+  echo "  service remove    Remove a service from the registry"
+  echo "  deploy            Preview and apply registry changes"
+  echo "  init              Initialize Home Stack environment"
+  echo "  logs <name>       Tail logs for a service"
+  echo
+}
+
+api_call() {
+  local method="$1"
+  local path="$2"
+  local body="${3:-}"
+
+  if [[ -z "$ADMIN_PASS" ]]; then
+    echo "Error: HOME_STACK_ADMIN_PASSWORD not set in env.local" >&2
+    exit 1
+  fi
+
+  local curl_args=(-s -X "$method" -u "$HOME_STACK_ADMIN_USERNAME:$ADMIN_PASS" -H "X-Home-Stack-Admin: 1")
+  if [[ -n "$body" ]]; then
+    curl_args+=(-H "Content-Type: application/json" -d "$body")
+  fi
+
+  "${HOME_STACK_CURL_BIN:-curl}" "${curl_args[@]}" "$ADMIN_URL$path"
+}
+
+cmd_sync() {
+  local bin="$HOME_STACK_BUNDLE_DIR/admin/home-stack-admin"
+  if [[ ! -x "$bin" ]]; then
+    echo "home-stack: admin binary not found at $bin" >&2
+    echo "  build with: cd $HOME_STACK_BUNDLE_DIR/admin && go build -o home-stack-admin" >&2
+    exit 1
+  fi
+  exec "$bin" sync
+}
+
+# Shared gum helpers — use gum for pretty output when available, fall back to plain text.
+if command -v gum &>/dev/null; then
+  _gum_ok()    { printf '%s' "$(gum style --foreground 2 '✓') "; }
+  _gum_warn()  { printf '%s' "$(gum style --foreground 3 '~') "; }
+  _gum_fail()  { printf '%s' "$(gum style --foreground 1 '✗') "; }
+  _gum_title() { gum style "$1" --foreground 212 --bold; }
+  _gum_table_header() { printf 'SERVICE,SCOPE,STATE,PID,EXIT,PROGRAM\n'; }
+  _gum_table_row()    { printf '%s,%s,%s,%s,%s,%s\n' "$1" "$2" "$3" "$4" "$5" "$6"; }
+
+  cmd_status() {
+    local data
+    data=$("$SCRIPT_DIR/status-launchd.sh" --table "$1" 2>/dev/null)
+    if [[ -n "$data" && -t 1 ]]; then
+      # In a terminal: pipe through gum table for pretty output
+      printf '%s\n' "$data" | tail -n +2 | sed 's/[[:space:]]\+/,/g' | \
+        gum table --widths 14,7,14,7,14,20 2>/dev/null || printf '%s\n' "$data"
+    else
+      "$SCRIPT_DIR/status-launchd.sh" "$@"
+    fi
+  }
+else
+  _gum_ok()    { printf '✓ '; }
+  _gum_warn()  { printf '~ '; }
+  _gum_fail()  { printf '✗ '; }
+  _gum_title() { printf '%s\n' "$1"; }
+  _gum_table_header() { printf '%-14s %-7s %-14s %-7s %-14s %s\n' "$1" "$2" "$3" "$4" "$5" "$6"; }
+  _gum_table_row()    { printf '%-14s %-7s %-14s %-7s %-14s %s\n' "$1" "$2" "$3" "$4" "$5" "$6"; }
+
+  cmd_status() {
+    "$SCRIPT_DIR/status-launchd.sh" "$@"
+  }
+fi
+
+cmd_doctor() {
+  _gum_title "HOME STACK DOCTOR"
+  echo ""
+  local errs=0
+
+  # ── Section 1: Profile resolution ────────────────────────────────────────
+  local name="${HOME_STACK_PROFILE:-$(whoami)}"
+  local profile_dir="$(home_stack_profile_dir "$name")"
+  if [[ ! -d "$profile_dir" ]]; then
+    _gum_fail; echo "Profile MISSING: $profile_dir — run 'hs init [<name>]'"
+    errs=$((errs+1))
+  else
+    _gum_ok; echo "Profile present: $profile_dir"
+  fi
+
+  # ── Section 2: Mandatory profile variables ───────────────────────────────
+  local mandatory_keys=(
+    HOME_STACK_PARENT_DOMAIN
+    HOME_STACK_TAILNET_IP
+    HOME_STACK_ACME_EMAIL
+    HOME_STACK_OWNER_HOME
+    HOME_STACK_IDENTIFIER_PREFIX
+    HOME_STACK_ADMIN_USERNAME
+  )
+  local profile_env_file="$profile_dir/home-stack.env"
+  # Capture all six values in one subshell pass to avoid repeated sourcing
+  local captured_vals
+  captured_vals=$(
+    set -a
+    [[ -f "$profile_env_file" ]] && . "$profile_env_file" 2>/dev/null
+    for k in HOME_STACK_PARENT_DOMAIN HOME_STACK_TAILNET_IP HOME_STACK_ACME_EMAIL \
+              HOME_STACK_OWNER_HOME HOME_STACK_IDENTIFIER_PREFIX HOME_STACK_ADMIN_USERNAME; do
+      printf '%s\t%s\n' "$k" "${!k:-}"
+    done
+  )
+  local prefix_val=""
+  local tailnet_ip_val=""
+  local owner_home_val=""
+  while IFS=$'\t' read -r key val; do
+    if [[ -z "$val" ]]; then
+      _gum_fail; echo "$key UNSET in profiles/$name/home-stack.env"
+      errs=$((errs+1))
+    else
+      _gum_ok; echo "$key = $val"
+      case "$key" in
+        HOME_STACK_IDENTIFIER_PREFIX) prefix_val="$val" ;;
+        HOME_STACK_TAILNET_IP)        tailnet_ip_val="$val" ;;
+        HOME_STACK_OWNER_HOME)        owner_home_val="$val" ;;
+      esac
+    fi
+  done <<< "$captured_vals"
+
+  # ── Section 3: Identifier-prefix sanity ──────────────────────────────────
+  if [[ -n "$prefix_val" ]]; then
+    if [[ "$prefix_val" =~ ^[a-z][a-z0-9.-]+$ ]]; then
+      _gum_ok; echo "Identifier prefix valid"
+    else
+      _gum_fail; echo "HOME_STACK_IDENTIFIER_PREFIX value '$prefix_val' is not a valid lowercase reverse-DNS prefix (regex: ^[a-z][a-z0-9.-]+\$)"
+      errs=$((errs+1))
+    fi
+  fi
+
+  # ── Section 4: Registry presence ─────────────────────────────────────────
+  local reg="$profile_dir/services.yaml"
+  if [[ -f "$reg" ]]; then
+    _gum_ok; echo "Registry found: services.yaml"
+  else
+    _gum_fail; echo "Registry MISSING: $reg"
+    errs=$((errs+1))
+  fi
+
+  # ── Section 5: Secrets file ───────────────────────────────────────────────
+  local effective_owner_home="${owner_home_val:-$HOME}"
+  local env_file="$effective_owner_home/.config/home-stack/env.local"
+  if [[ -f "$env_file" ]]; then
+    _gum_ok; echo "env.local present: $env_file"
+    # Check mode is 600
+    local perm
+    perm=$(stat -f '%Lp' "$env_file" 2>/dev/null || stat -c '%a' "$env_file" 2>/dev/null)
+    if [[ "$perm" != "600" ]]; then
+      _gum_fail; echo "env.local mode is $perm (expected 600)"
+      errs=$((errs+1))
+    fi
+    # Check that env.local does NOT set identity keys
+    for key in HOME_STACK_PARENT_DOMAIN HOME_STACK_TAILNET_IP HOME_STACK_ACME_EMAIL \
+               HOME_STACK_OWNER_HOME HOME_STACK_IDENTIFIER_PREFIX HOME_STACK_ADMIN_USERNAME; do
+      if grep -qE "^[[:space:]]*${key}=" "$env_file" 2>/dev/null; then
+        _gum_fail; echo "env.local contains identity key $key (must live in profile, not secrets)"
+        errs=$((errs+1))
+      fi
+    done
+  else
+    _gum_fail; echo "env.local missing at $env_file — run 'hs init'"
+    errs=$((errs+1))
+  fi
+
+  # ── Section 6: Required binaries ─────────────────────────────────────────
+  for bin in go tailscale; do
+    if command -v "$bin" >/dev/null 2>&1; then
+      _gum_ok; echo "Binary found: $bin ($(command -v "$bin"))"
+    else
+      _gum_fail; echo "Binary MISSING: $bin"
+      errs=$((errs+1))
+    fi
+  done
+  if command -v caddy >/dev/null 2>&1; then
+    _gum_ok; echo "Binary found: caddy ($(command -v caddy))"
+  elif [[ -f "$HOME_STACK_BUNDLE_DIR/bin/caddy-cloudflare" ]]; then
+    _gum_ok; echo "Binary found: caddy ($HOME_STACK_BUNDLE_DIR/bin/caddy-cloudflare)"
+  else
+    _gum_fail; echo "Binary MISSING: caddy"
+    errs=$((errs+1))
+  fi
+  # `hs sync` hard-requires this binary and refuses to run without it; check
+  # here too so doctor cannot report healthy moments before sync fails.
+  local admin_bin="$HOME_STACK_BUNDLE_DIR/admin/home-stack-admin"
+  if [[ -x "$admin_bin" ]]; then
+    _gum_ok; echo "Binary found: home-stack-admin ($admin_bin)"
+  else
+    _gum_fail; echo "Binary MISSING: home-stack-admin ($admin_bin) — build with 'make build-admin' from the repo root"
+    errs=$((errs+1))
+  fi
+
+  # ── Section 7: Tailnet ────────────────────────────────────────────────────
+  if command -v tailscale >/dev/null 2>&1; then
+    local ts_ip
+    ts_ip=$(tailscale ip -4 2>/dev/null)
+    if [[ -n "$ts_ip" ]]; then
+      _gum_ok; echo "Tailnet active: $ts_ip"
+      if [[ -n "$tailnet_ip_val" && "$tailnet_ip_val" != "$ts_ip" ]]; then
+        _gum_warn; echo "HOME_STACK_TAILNET_IP=$tailnet_ip_val does not match local tailscale IP $ts_ip"
+      fi
+    else
+      _gum_fail; echo "Tailnet DOWN"
+      errs=$((errs+1))
+    fi
+  fi
+
+  # ── Section 8: Identity layer ────────────────────────────────────────────
+  # Only meaningful once a service opts in. Each check corresponds to a way the
+  # stack can be internally inconsistent in a manner `hs sync` will happily
+  # generate and the running ingress will then refuse to load.
+  local registry="$profile_dir/services.yaml"
+  if [[ -f "$registry" ]]; then
+    local gated sso_gated caddy_bin
+    gated=$(grep -cE '^[[:space:]]+auth:[[:space:]]*(tailnet|sso|tailnet-or-sso)[[:space:]]*$' "$registry" 2>/dev/null || true)
+    sso_gated=$(grep -cE '^[[:space:]]+auth:[[:space:]]*(sso|tailnet-or-sso)[[:space:]]*$' "$registry" 2>/dev/null || true)
+    caddy_bin="$HOME_STACK_BUNDLE_DIR/bin/caddy-cloudflare"
+
+    if [[ "${gated:-0}" -gt 0 ]]; then
+      # A gated route emits tailscale_auth. A Caddy built without the plugin
+      # cannot load that config, so sync would replace a working Caddyfile with
+      # one the running daemon rejects.
+      if [[ -x "$caddy_bin" ]]; then
+        if "$caddy_bin" list-modules 2>/dev/null | grep -qx 'http.authentication.providers.tailscale'; then
+          _gum_ok; echo "Caddy has tailscale_auth ($gated gated route(s))"
+        else
+          _gum_fail; echo "$gated route(s) use auth: but $caddy_bin lacks the tailscale plugin — rebuild per docs/RUNBOOK.md before 'hs sync'"
+          errs=$((errs+1))
+        fi
+      else
+        _gum_warn; echo "$gated gated route(s), but no caddy binary at $caddy_bin to verify"
+      fi
+
+      # Admin only believes ingress-resolved identity when the shared secret is
+      # present; without it every gated request silently falls back to Basic
+      # Auth, which looks like the feature simply not working.
+      #
+      # Read the file, not the variable: doctor deliberately does not source
+      # env.local (it must run against a broken profile), so the variable is
+      # never set here regardless of whether the secret exists. Presence only —
+      # the value is never read or printed.
+      if [[ -f "$env_file" ]] && grep -q '^HOME_STACK_ADMIN_PROXY_SECRET=.' "$env_file" 2>/dev/null; then
+        _gum_ok; echo "HOME_STACK_ADMIN_PROXY_SECRET present in env.local"
+      else
+        _gum_warn; echo "HOME_STACK_ADMIN_PROXY_SECRET missing from env.local — Admin will ignore ingress identity and prompt for Basic Auth"
+      fi
+    fi
+
+    if [[ "${sso_gated:-0}" -gt 0 ]]; then
+      if grep -qE '^[[:space:]]+tinyauth:[[:space:]]*$' "$registry"; then
+        _gum_ok; echo "Broker registered for $sso_gated sso route(s)"
+      else
+        _gum_fail; echo "$sso_gated route(s) use auth: sso but no 'tinyauth' service is registered"
+        errs=$((errs+1))
+      fi
+    fi
+
+    # Registered identity services need their binaries; both are operator-
+    # installed (one downloaded, one built from source), so a fresh clone has
+    # the registry entry without the executable.
+    local svc
+    for svc in pocket-id tinyauth; do
+      if grep -qE "^[[:space:]]+${svc}:[[:space:]]*$" "$registry"; then
+        if [[ -x "$HOME_STACK_BUNDLE_DIR/bin/$svc" ]]; then
+          _gum_ok; echo "$svc binary present"
+        else
+          _gum_fail; echo "$svc is registered but $HOME_STACK_BUNDLE_DIR/bin/$svc is missing — see docs/RUNBOOK.md"
+          errs=$((errs+1))
+        fi
+      fi
+    done
+  fi
+
+  # ── Section 9: Footer ─────────────────────────────────────────────────────
+  echo ""
+  echo "-------------------------"
+  if [[ $errs -eq 0 ]]; then
+    _gum_title "SYSTEM HEALTHY"
+  else
+    _gum_fail; echo "$errs issues detected"
+    return 1
+  fi
+}
+
+cmd_init() {
+  # Derive locals — home_stack_load_env is NOT called for init
+  local owner_home="${HOME_STACK_OWNER_HOME:-$HOME}"
+  local config_dir="$owner_home/.config/home-stack"
+  local env_file="$config_dir/env.local"
+  local log_dir="$config_dir/logs"
+  local pid_dir="$config_dir/pids"
+  local tls_dir="$config_dir/tls"
+  local caddy_config_dir="$config_dir/caddy/config"
+  local caddy_data_dir="$config_dir/caddy/data"
+
+  # Parse arguments
+  local force=0
+  local name=""
+  for arg in "$@"; do
+    case "$arg" in
+      --force) force=1 ;;
+      -*) echo "unknown flag: $arg" >&2; exit 1 ;;
+      *) if [[ -z "$name" ]]; then name="$arg"; fi ;;
+    esac
+  done
+  if [[ -z "$name" ]]; then
+    name="${HOME_STACK_PROFILE:-$(whoami)}"
+  fi
+
+  # Validate name
+  if ! [[ "$name" =~ ^[a-z][a-z0-9_-]*$ ]]; then
+    echo "error: invalid profile name '$name' (must match ^[a-z][a-z0-9_-]*\$)" >&2
+    exit 1
+  fi
+
+  local repo_root="${HOME_STACK_REPO_ROOT:-$(cd "$SCRIPT_DIR/../../../.." && pwd)}"
+  local default_dir="$(home_stack_profile_dir default)"
+  local profile_dir="$(home_stack_profile_dir "$name")"
+
+  # Refuse to clobber unless --force
+  if [[ -d "$profile_dir" && $force -eq 0 ]]; then
+    echo "error: profile '$name' already exists at $profile_dir; use 'hs init $name --force' to overwrite" >&2
+    exit 1
+  fi
+
+  # Copy profiles/default/ -> profiles/<name>/
+  if [[ ! -d "$default_dir" ]]; then
+    echo "error: source profile 'default' not found at $default_dir" >&2
+    exit 1
+  fi
+  mkdir -p "$profile_dir"
+  for src in "$default_dir"/*; do
+    [[ -f "$src" ]] || continue
+    local fname
+    fname="$(basename "$src")"
+    cp "$src" "$profile_dir/$fname"
+    _gum_ok; echo "Copied $fname -> profiles/$name/$fname"
+  done
+
+  # Create runtime dirs
+  for dir in "$log_dir" "$pid_dir" "$tls_dir" "$caddy_config_dir" "$caddy_data_dir"; do
+    if ! mkdir -p "$dir"; then
+      echo "error: failed to create directory $dir" >&2
+      exit 1
+    fi
+    if [[ ! -w "$dir" ]]; then
+      echo "error: directory not writable: $dir" >&2
+      exit 1
+    fi
+  done
+  _gum_ok; echo "Runtime directories initialized under $config_dir"
+
+  # Seed env.local if not present
+  local template_env="$repo_root/templates/env.example"
+  if [[ ! -f "$env_file" ]]; then
+    if [[ ! -f "$template_env" ]]; then
+      echo "error: template not found at $template_env" >&2
+      exit 1
+    fi
+    cp "$template_env" "$env_file"
+    chmod 600 "$env_file"
+    _gum_ok; echo "Created env.local at $env_file (from templates/env.example)"
+  else
+    echo "[i] env.local already exists at $env_file; not modified"
+  fi
+
+  # Print next-step checklist
+  echo ""
+  echo "Profile '$name' bootstrapped at $profile_dir."
+  echo ""
+  echo "Next steps:"
+  echo "  1. Edit profiles/$name/home-stack.env and replace placeholder values"
+  echo "     (HOME_STACK_PARENT_DOMAIN, HOME_STACK_TAILNET_IP, HOME_STACK_ACME_EMAIL,"
+  echo "      HOME_STACK_OWNER_HOME, HOME_STACK_IDENTIFIER_PREFIX, HOME_STACK_ADMIN_USERNAME)."
+  echo "  2. Edit ~/.config/home-stack/env.local with your real secrets."
+  echo "  3. Run 'hs doctor' to verify the contract."
+  echo "  4. Run 'hs sync' to materialize Caddy + launchd artifacts."
+}
+
+cmd_logs() {
+  local name="$1"
+  local log_file="${HOME_STACK_LOG_DIR}/${name}.launchd.out.log"
+  if [[ -f "$log_file" ]]; then
+    echo ""; _gum_title " Tailing logs for $name "
+    tail -f "$log_file"
+  else
+    echo "Error: Log file not found: $log_file" >&2
+    exit 1
+  fi
+}
+
+cmd_service() {
+  local action="$1"
+  local name="$2"
+  "$SCRIPT_DIR/service-launchd.sh" "$action" "$name"
+}
+
+cmd_deploy() {
+  local mode="${1:---preview}"
+  case "$mode" in
+    --preview)
+      api_call POST /api/actions '{"action":"deploy.preview","target":"system","confirm":false}' | python3 -c "
+import json,sys
+d = json.load(sys.stdin)
+details = d.get('details','{}')
+if isinstance(details, str):
+    diff = json.loads(details)
+else:
+    diff = details
+if diff.get('has_changes'):
+    print('Changes pending:')
+    for sec in ['caddyfile','launchd','catalog']:
+        s = diff.get(sec,{})
+        if s.get('added') or s.get('removed') or s.get('changed'):
+            print(f\"  {sec}: +{s.get('added',0)} -{s.get('removed',0)} ~{s.get('changed',0)}\")
+    if s.get('details'):
+        for line in s.get('details',[]):
+            print(f'    {line}')
+else:
+    print('Registry is in sync.')
+" 2>/dev/null || echo "Deploy preview not available. Run 'hs sync' first."
+      ;;
+    --apply)
+      command -v gum &>/dev/null && gum confirm "Apply all pending changes? This will reload Caddy." || { read -p "Apply all pending changes? [y/N] " -n1 -r; echo; [[ $REPLY =~ ^[Yy]$ ]] || exit 0; }
+      api_call POST /api/actions '{"action":"deploy.apply","target":"system","confirm":true}' | python3 -c "import json,sys; d=json.load(sys.stdin); print(d.get('message','Apply completed'))" 2>/dev/null || echo "Apply failed. Check 'hs doctor'."
+      ;;
+    *)
+      cmd_deploy --preview
+      ;;
+  esac
+}
+
+cmd_service_manage() {
+  local action="${1:-}"
+  case "$action" in
+    add) shift; cmd_service_add "$@" ;;
+    remove|rm) cmd_service_remove "${2:-}" ;;
+    *) echo "Usage: hs service <add|remove> [args]" >&2; exit 1 ;;
+  esac
+}
+
+cmd_service_add() {
+  local name="${1:-}"
+  # Non-interactive
+  if [[ -n "$name" ]]; then
+    local svc_type="" subdomain="" upstream="" root="" lifecycle="external"
+    while [[ $# -gt 0 ]]; do
+      case "$1" in
+        --type) svc_type="$2"; shift 2 ;;
+        --subdomain) subdomain="$2"; shift 2 ;;
+        --upstream) upstream="$2"; shift 2 ;;
+        --root) root="$2"; shift 2 ;;
+        --lifecycle) lifecycle="$2"; shift 2 ;;
+        --display-name) shift 2 ;; # skip for now
+        *) shift ;;
+      esac
+    done
+    local body=$(printf '{"action":"registry.add","target":"%s","confirm":true,"service":{"type":"%s","subdomain":"%s","upstream":"%s","root":"%s","lifecycle":"%s"}}' "$name" "$svc_type" "$subdomain" "$upstream" "$root" "$lifecycle")
+    api_call POST /api/actions "$body" | python3 -c "import json,sys; d=json.load(sys.stdin); print(d.get('message',d.get('details','')))" 2>/dev/null
+    echo "Run 'hs deploy' to apply changes."
+    return
+  fi
+
+  # Interactive with gum
+  command -v gum &>/dev/null || { echo "gum required for interactive mode. Use flags: hs service add <name> --type proxy --upstream 127.0.0.1:PORT" >&2; exit 1; }
+  name=$(gum input --header "Service name" --placeholder "myapp")
+  [[ -z "$name" ]] && exit 0
+  local svc_type=$(gum choose --header "Type" "proxy" "static" "task" "split")
+  local lifecycle=$(gum choose --header "Lifecycle" "managed" "external" "custom")
+  local subdomain="" upstream="" root="" binary="" plist=""
+  case "$svc_type" in
+    proxy|split) subdomain=$(gum input --header "Subdomain" --placeholder "$name" --value "$name")
+      [[ "$svc_type" == "proxy" || "$svc_type" == "split" ]] && upstream=$(gum input --header "Upstream (host:port)" --placeholder "127.0.0.1:8080")
+      [[ "$svc_type" == "split" ]] && root=$(gum input --header "Root path" --placeholder "~/myapp/dist")
+      ;;
+    static) subdomain=$(gum input --header "Subdomain" --placeholder "$name" --value "$name")
+      root=$(gum input --header "Root path" --placeholder "~/myapp/dist")
+      ;;
+    task) binary=$(gum input --header "Binary path" --placeholder "/usr/local/bin/myapp")
+      ;;
+  esac
+  [[ "$lifecycle" == "custom" ]] && plist=$(gum input --header "Plist path" --placeholder "~/Library/LaunchAgents/my.plist")
+  [[ "$lifecycle" == "managed" && -z "$binary" && "$svc_type" == "task" ]] && binary=$(gum input --header "Binary path")
+
+  gum confirm "Add $name as $svc_type ($lifecycle)?" || exit 0
+
+  local body=$(python3 -c "
+import json
+svc = {'type': '$svc_type', 'lifecycle': '$lifecycle'}
+if '$subdomain': svc['subdomain'] = '$subdomain'
+if '$upstream': svc['upstream'] = '$upstream'
+if '$root': svc['root'] = '$root'
+if '$binary': svc['binary'] = '$binary'
+if '$plist': svc['plist'] = '$plist'
+print(json.dumps({'action':'registry.add','target':'$name','confirm':True,'service':svc}))
+" 2>/dev/null || printf '{"action":"registry.add","target":"%s","confirm":true,"service":{"type":"%s","lifecycle":"%s"}}' "$name" "$svc_type" "$lifecycle")
+
+  api_call POST /api/actions "$body" | python3 -c "import json,sys; d=json.load(sys.stdin); print(d.get('message',d.get('details','')))" 2>/dev/null
+  echo "Run 'hs deploy' to apply changes."
+}
+
+cmd_service_remove() {
+  local name="${1:-}"
+  [[ -z "$name" ]] && { echo "Usage: hs service remove <name>"; exit 1; }
+  command -v gum &>/dev/null && gum confirm "Remove $name? This removes its route and stops the service." || { read -p "Remove $name? [y/N] " -n1 -r; echo; [[ $REPLY =~ ^[Yy]$ ]] || exit 0; }
+  api_call POST /api/actions "{\"action\":\"registry.remove\",\"target\":\"$name\",\"confirm\":true}" | python3 -c "import json,sys; d=json.load(sys.stdin); print(d.get('message',d.get('details','')))" 2>/dev/null
+  echo "Run 'hs deploy' to apply changes."
+}
+
+if [[ $# -lt 1 ]]; then
+  usage
+  exit 1
+fi
+
+ARG1="$1"
+ARG2="${2:-}"
+
+case "$ARG1" in
+  sync) cmd_sync; exit 0 ;;
+  status) cmd_status "$ARG2"; exit 0 ;;
+  doctor) cmd_doctor; exit 0 ;;
+  init) shift; cmd_init "$@"; exit 0 ;;
+  logs) cmd_logs "$ARG2"; exit 0 ;;
+  start|stop|restart|reload)
+    cmd_service "$ARG1" "$ARG2"
+    ;;
+  service) shift; cmd_service_manage "$@"; exit 0 ;;
+  deploy) shift; cmd_deploy "$@"; exit 0 ;;
+  *)
+    # ARG1 is not a known first-level command. The only other legitimate
+    # shape is the reversed `hs <service_name> <command>` form (ARG2 is a
+    # lifecycle verb service-launchd.sh understands), so only that shape may
+    # fall through to it. Anything else -- an unrecognized subcommand like
+    # `app`, a typo'd service name, a bare unknown word -- must stop here:
+    # letting it reach cmd_service unconditionally used to hand
+    # service-launchd.sh an arbitrary ARG2 as the *action* (e.g. `hs app add`
+    # dispatched action=add target=app), which it rejected with its own
+    # "Unknown action" error instead of `hs` printing usage.
+    case "$ARG2" in
+      start|stop|restart|status|reload)
+        cmd_service "$ARG2" "$ARG1"
+        ;;
+      *)
+        usage; exit 2
+        ;;
+    esac
+    ;;
+esac

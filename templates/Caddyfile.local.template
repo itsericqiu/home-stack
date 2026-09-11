@@ -1,0 +1,8 @@
+{
+	auto_https off
+}
+
+http://127.0.0.1:31480 {
+	# Local, non-TLS test site proxying to OpenChamber/OpenCode
+	reverse_proxy 127.0.0.1:__HOME_STACK_OPENCHAMBER_PORT__
+}

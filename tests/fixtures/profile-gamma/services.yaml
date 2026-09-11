@@ -1,0 +1,70 @@
+services:
+  caddy:
+    display_name: "Caddy Ingress"
+    kind: "ingress"
+    type: "system"
+    subdomain: "*"
+
+  # Gated like the live deployment: admin is the one upstream that receives the
+  # proxy secret, so this golden pins both the chained lanes and the fact that
+  # the secret goes nowhere else. No-auth compatibility is proven by the acme
+  # and beta fixtures, which carry no auth fields at all.
+  admin:
+    display_name: "Gamma Admin"
+    kind: "control"
+    type: "proxy"
+    upstream: "127.0.0.1:33510"
+    subdomain: admin
+    auth: tailnet-or-sso
+
+  # Auth coverage.
+  tinyauth:
+    display_name: "Tinyauth Broker"
+    kind: "auth"
+    type: "proxy"
+    upstream: "127.0.0.1:33600"
+    subdomain: auth
+
+  gated-tailnet:
+    display_name: "Gated Tailnet"
+    kind: "app"
+    type: "proxy"
+    upstream: "127.0.0.1:33601"
+    subdomain: gated-tailnet
+    auth: tailnet
+
+  gated-sso:
+    display_name: "Gated SSO"
+    kind: "app"
+    type: "proxy"
+    upstream: "127.0.0.1:33602"
+    subdomain: gated-sso
+    auth: sso
+
+  gated-both:
+    display_name: "Gated Tailnet Or SSO"
+    kind: "app"
+    type: "proxy"
+    upstream: "127.0.0.1:33603"
+    subdomain: gated-both
+    auth: tailnet-or-sso
+
+  gated-none:
+    display_name: "Gated None"
+    kind: "app"
+    type: "proxy"
+    upstream: "127.0.0.1:33604"
+    subdomain: gated-none
+    auth: none
+
+  # A split service under auth: the gate must wrap both the API prefixes and
+  # the static fallback, not just one of them.
+  gated-split:
+    display_name: "Gated Split"
+    kind: "app"
+    type: "split"
+    upstream: "127.0.0.1:33605"
+    root: "~/gamma/dist"
+    api_path: "/api,/ws"
+    subdomain: gated-split
+    auth: tailnet

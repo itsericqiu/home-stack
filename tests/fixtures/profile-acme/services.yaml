@@ -1,0 +1,34 @@
+services:
+  caddy:
+    display_name: "Caddy Ingress"
+    kind: "ingress"
+    type: "system"
+    subdomain: "*"
+    health:
+      port: 443
+
+  admin:
+    display_name: "Acme Admin"
+    kind: "control"
+    type: "proxy"
+    upstream: "127.0.0.1:31510"
+    subdomain: admin
+    health:
+      port: 31510
+
+  external:
+    display_name: "External"
+    kind: "proxy"
+    type: "proxy"
+    upstream: "127.0.0.1:31000"
+    host: "external.acme-cdn.test"
+    health:
+      port: 31000
+
+  internal-backend:
+    display_name: "Internal Backend"
+    kind: "backend"
+    type: "proxy"
+    upstream: "127.0.0.1:31999"
+    health:
+      port: 31999

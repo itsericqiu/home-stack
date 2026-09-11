@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>Label</key>
+	<string>test.delta.home-stack.enabled-app</string>
+	<key>ProgramArguments</key>
+	<array>
+		<string>__WORK__/repo-delta/portable/home-stack/scripts/run-enabled-app.sh</string>
+	</array>
+	<key>EnvironmentVariables</key>
+	<dict>
+		<key>HOME_STACK_DATA_DIR</key>
+		<string>__WORK__/owner-delta/.config/home-stack/data/enabled-app</string>
+		<key>HOME_STACK_PROFILE</key>
+		<string>delta</string>
+		<key>HOME_STACK_SELF_HOST</key>
+		<string>enabled-app.home.delta.test</string>
+		<key>HOME_STACK_SELF_NAME</key>
+		<string>enabled-app</string>
+		<key>HOME_STACK_SELF_URL</key>
+		<string>https://enabled-app.home.delta.test</string>
+	</dict>
+	<key>RunAtLoad</key>
+	<true/>
+	<key>KeepAlive</key>
+	<true/>
+	<key>StandardOutPath</key>
+	<string>__WORK__/owner-delta/.config/home-stack/logs/enabled-app.launchd.out.log</string>
+	<key>StandardErrorPath</key>
+	<string>__WORK__/owner-delta/.config/home-stack/logs/enabled-app.launchd.err.log</string>
+</dict>
+</plist>

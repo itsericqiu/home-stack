@@ -1,0 +1,25 @@
+# Linux container image for home-stack agnostic-surface tests.
+FROM golang:1.26-alpine
+
+# python3: `hs deploy` pipes API responses through it, and its absence was
+# masked by a fallback message rather than failing.
+# grep: GNU grep at /bin/grep, replacing the busybox applet. Not strictly
+# required (busybox grep handles -qE fine) but it keeps the container closer
+# to the Linux hosts this suite is meant to represent.
+RUN apk add --no-cache bash perl curl git libxml2-utils make jq python3 grep
+
+WORKDIR /repo
+
+# Build a Linux caddy-cloudflare for caddy-adapt tests. The plugin set must
+# match the production recipe in docs/RUNBOOK.md: fixtures now generate
+# `tailscale_auth`, which a binary without the tailscale plugin cannot adapt,
+# so an image built with the wrong plugins fails on valid config.
+RUN go install github.com/caddyserver/xcaddy/cmd/xcaddy@latest && \
+    /go/bin/xcaddy build \
+      --with github.com/caddy-dns/cloudflare \
+      --with github.com/tailscale/caddy-tailscale \
+      --output /usr/local/bin/caddy-cloudflare
+
+# Tests are run via bind mount; this image only provides the runtime.
+ENTRYPOINT ["/bin/bash", "-c"]
+CMD ["make test-linux-inner"]

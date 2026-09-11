@@ -1,0 +1,69 @@
+{
+  "admin": {
+    "DisplayName": "Delta Admin",
+    "Kind": "control",
+    "Type": "proxy",
+    "Subdomain": "admin",
+    "Host": "",
+    "Upstream": "127.0.0.1:34510",
+    "Root": "",
+    "Args": null,
+    "WorkingDir": "",
+    "Env": null,
+    "Health": {
+      "Port": 0,
+      "HTTPURL": ""
+    },
+    "url": "https://admin.home.delta.test"
+  },
+  "caddy": {
+    "DisplayName": "Caddy Ingress",
+    "Kind": "ingress",
+    "Type": "system",
+    "Subdomain": "*",
+    "Host": "",
+    "Upstream": "",
+    "Root": "",
+    "Args": null,
+    "WorkingDir": "",
+    "Env": null,
+    "Health": {
+      "Port": 0,
+      "HTTPURL": ""
+    }
+  },
+  "disabled-app": {
+    "DisplayName": "Disabled App",
+    "Kind": "app",
+    "Type": "proxy",
+    "Subdomain": "disabled-app",
+    "Host": "",
+    "Upstream": "127.0.0.1:34700",
+    "Root": "",
+    "Args": null,
+    "WorkingDir": "",
+    "Env": null,
+    "Health": {
+      "Port": 0,
+      "HTTPURL": ""
+    },
+    "enabled": false
+  },
+  "enabled-app": {
+    "DisplayName": "Enabled App",
+    "Kind": "app",
+    "Type": "proxy",
+    "Subdomain": "enabled-app",
+    "Host": "",
+    "Upstream": "127.0.0.1:34701",
+    "Root": "",
+    "Args": null,
+    "WorkingDir": "",
+    "Env": null,
+    "Health": {
+      "Port": 0,
+      "HTTPURL": ""
+    },
+    "url": "https://enabled-app.home.delta.test"
+  }
+}

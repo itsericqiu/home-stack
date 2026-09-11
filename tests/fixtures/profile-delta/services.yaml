@@ -1,0 +1,33 @@
+services:
+  caddy:
+    display_name: "Caddy Ingress"
+    kind: "ingress"
+    type: "system"
+    subdomain: "*"
+
+  admin:
+    display_name: "Delta Admin"
+    kind: "control"
+    type: "proxy"
+    upstream: "127.0.0.1:34510"
+    subdomain: admin
+
+  # enabled: coverage. disabled-app must get no Caddy route and no launchd
+  # plist, but must still appear in catalog.json with "enabled": false.
+  # enabled-app is its sibling, with no enabled field at all (defaults true),
+  # to prove the absent-field case stays byte-identical to output that
+  # predates this feature.
+  disabled-app:
+    display_name: "Disabled App"
+    kind: "app"
+    type: "proxy"
+    upstream: "127.0.0.1:34700"
+    subdomain: disabled-app
+    enabled: false
+
+  enabled-app:
+    display_name: "Enabled App"
+    kind: "app"
+    type: "proxy"
+    upstream: "127.0.0.1:34701"
+    subdomain: enabled-app

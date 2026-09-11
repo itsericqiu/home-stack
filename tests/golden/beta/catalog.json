@@ -1,0 +1,139 @@
+{
+  "admin": {
+    "DisplayName": "Beta Admin",
+    "Kind": "control",
+    "Type": "proxy",
+    "Subdomain": "admin",
+    "Host": "",
+    "Upstream": "127.0.0.1:32510",
+    "Root": "",
+    "Args": null,
+    "WorkingDir": "",
+    "Env": null,
+    "Health": {
+      "Port": 0,
+      "HTTPURL": ""
+    },
+    "url": "https://admin.home.beta.test"
+  },
+  "caddy": {
+    "DisplayName": "Caddy Ingress",
+    "Kind": "ingress",
+    "Type": "system",
+    "Subdomain": "*",
+    "Host": "",
+    "Upstream": "",
+    "Root": "",
+    "Args": null,
+    "WorkingDir": "",
+    "Env": null,
+    "Health": {
+      "Port": 0,
+      "HTTPURL": ""
+    }
+  },
+  "custom-svc": {
+    "DisplayName": "Custom Service",
+    "Kind": "proxy",
+    "Type": "proxy",
+    "Subdomain": "custom",
+    "Host": "",
+    "Upstream": "127.0.0.1:32003",
+    "Root": "",
+    "binary": "/usr/local/bin/my-app",
+    "Args": null,
+    "WorkingDir": "",
+    "Env": null,
+    "Health": {
+      "Port": 0,
+      "HTTPURL": ""
+    },
+    "url": "https://custom.home.beta.test"
+  },
+  "hermes": {
+    "DisplayName": "Hermes Agent",
+    "Kind": "agent",
+    "Type": "proxy",
+    "Subdomain": "hermes",
+    "Host": "",
+    "Upstream": "100.64.0.43:32511",
+    "proxy_identity": "upstream",
+    "Root": "",
+    "lifecycle": "managed",
+    "Args": null,
+    "WorkingDir": "",
+    "Env": null,
+    "Health": {
+      "Port": 32511,
+      "HTTPURL": "https://hermes.home.beta.test/api/status"
+    },
+    "url": "https://hermes.home.beta.test"
+  },
+  "multi-subdomain": {
+    "DisplayName": "Multi Subdomain",
+    "Kind": "proxy",
+    "Type": "proxy",
+    "Subdomain": "blog",
+    "Host": "",
+    "Upstream": "127.0.0.1:32002",
+    "Root": "",
+    "Args": null,
+    "WorkingDir": "",
+    "Env": null,
+    "Health": {
+      "Port": 0,
+      "HTTPURL": ""
+    },
+    "url": "https://blog.home.beta.test"
+  },
+  "static-site": {
+    "DisplayName": "Static Site",
+    "Kind": "proxy",
+    "Type": "static",
+    "Subdomain": "site",
+    "Host": "",
+    "Upstream": "",
+    "Root": "~/Public/site",
+    "Args": null,
+    "WorkingDir": "",
+    "Env": null,
+    "Health": {
+      "Port": 0,
+      "HTTPURL": ""
+    },
+    "url": "https://site.home.beta.test"
+  },
+  "sub-wildcard": {
+    "DisplayName": "Sub Wildcard",
+    "Kind": "proxy",
+    "Type": "proxy",
+    "Subdomain": "*.api",
+    "Host": "",
+    "Upstream": "127.0.0.1:32001",
+    "Root": "",
+    "Args": null,
+    "WorkingDir": "",
+    "Env": null,
+    "Health": {
+      "Port": 0,
+      "HTTPURL": ""
+    }
+  },
+  "task-svc": {
+    "DisplayName": "Task Service",
+    "Kind": "task",
+    "Type": "task",
+    "Subdomain": "",
+    "Host": "",
+    "Upstream": "",
+    "Root": "",
+    "binary": "/usr/bin/true",
+    "Args": null,
+    "WorkingDir": "",
+    "Env": null,
+    "Health": {
+      "Port": 0,
+      "HTTPURL": ""
+    }
+  }
+}

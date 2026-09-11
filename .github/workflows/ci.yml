@@ -1,0 +1,45 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: home-stack-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # Broad, cheap net: go tests plus every portable shell test. The Darwin-only
+  # tests self-skip here, so this is the full portable surface at 1x.
+  linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: portable/home-stack/admin/go.mod
+          cache-dependency-path: portable/home-stack/admin/go.sum
+      - run: make test-linux-inner
+
+  # macOS bills at 10x on private repos, so this runs only what genuinely needs
+  # Darwin. The runner is ephemeral, so test-ci-mac allows real launchd changes
+  # and exercises install/bootstrap/unload end to end.
+  darwin:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: portable/home-stack/admin/go.mod
+          cache-dependency-path: portable/home-stack/admin/go.sum
+      # This is the one place that declares the host's launchd state disposable.
+      # It is deliberately explicit and reviewable here rather than inferred
+      # from CI=true, which unrelated tooling and self-hosted runners also set —
+      # and a self-hosted runner is somebody's real machine.
+      - run: make test-ci-mac
+        env:
+          HOME_STACK_TEST_EPHEMERAL: "1"

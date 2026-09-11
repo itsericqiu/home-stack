@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>Label</key>
+	<string>test.acme.home-stack.caddy</string>
+	<key>ProgramArguments</key>
+	<array>
+		<string>__WORK__/repo-acme/portable/home-stack/scripts/run-caddy.sh</string>
+	</array>
+	<key>WorkingDirectory</key>
+	<string>__WORK__/repo-acme/portable/home-stack</string>
+	<key>EnvironmentVariables</key>
+	<dict>
+		<key>HOME_STACK_PROFILE</key>
+		<string>acme</string>
+		<key>HOME_STACK_OWNER_HOME</key>
+		<string>__WORK__/owner-acme</string>
+		<key>HOME_STACK_BUNDLE_DIR</key>
+		<string>__WORK__/repo-acme/portable/home-stack</string>
+		<key>HOME_STACK_CONFIG_DIR</key>
+		<string>__WORK__/owner-acme/.config/home-stack</string>
+		<key>HOME</key>
+		<string>__WORK__/owner-acme</string>
+		<key>XDG_CONFIG_HOME</key>
+		<string>__WORK__/owner-acme/.config/home-stack/caddy/config</string>
+		<key>XDG_DATA_HOME</key>
+		<string>__WORK__/owner-acme/.config/home-stack/caddy/data</string>
+	</dict>
+	<key>RunAtLoad</key>
+	<true/>
+	<key>KeepAlive</key>
+	<true/>
+	<key>ThrottleInterval</key>
+	<integer>10</integer>
+	<key>StandardOutPath</key>
+	<string>__WORK__/owner-acme/.config/home-stack/logs/caddy.launchd.out.log</string>
+	<key>StandardErrorPath</key>
+	<string>__WORK__/owner-acme/.config/home-stack/logs/caddy.launchd.err.log</string>
+</dict>
+</plist>

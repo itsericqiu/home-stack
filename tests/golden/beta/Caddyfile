@@ -1,0 +1,56 @@
+{
+	email admin@beta.test
+	log {
+		level WARN
+	}
+}
+
+(cloudflare_tls) {
+	tls {
+		dns cloudflare {env.CLOUDFLARE_API_TOKEN}
+	}
+}
+
+*.home.beta.test {
+	bind 100.64.0.43
+	import cloudflare_tls
+
+	@admin host admin.home.beta.test
+	handle @admin {
+		reverse_proxy 127.0.0.1:32510
+	}
+
+	@custom_svc host custom.home.beta.test
+	handle @custom_svc {
+		reverse_proxy 127.0.0.1:32003
+	}
+
+	@hermes host hermes.home.beta.test
+	handle @hermes {
+		reverse_proxy 100.64.0.43:32511 {
+			header_up Host {upstream_hostport}
+			header_up Origin http://{upstream_hostport}
+		}
+	}
+
+	@multi_subdomain host blog.home.beta.test
+	handle @multi_subdomain {
+		reverse_proxy 127.0.0.1:32002
+	}
+
+	@static_site host site.home.beta.test
+	handle @static_site {
+		root "__WORK__/owner-beta/Public/site"
+		try_files {path} /index.html
+		file_server
+	}
+
+	@wildcard_sub_wildcard host *.api.home.beta.test
+	handle @wildcard_sub_wildcard {
+		reverse_proxy 127.0.0.1:32001
+	}
+
+	handle {
+		abort
+	}
+}

@@ -1,0 +1,68 @@
+{
+  "admin": {
+    "DisplayName": "Acme Admin",
+    "Kind": "control",
+    "Type": "proxy",
+    "Subdomain": "admin",
+    "Host": "",
+    "Upstream": "127.0.0.1:31510",
+    "Root": "",
+    "Args": null,
+    "WorkingDir": "",
+    "Env": null,
+    "Health": {
+      "Port": 31510,
+      "HTTPURL": ""
+    },
+    "url": "https://admin.home.acme.test"
+  },
+  "caddy": {
+    "DisplayName": "Caddy Ingress",
+    "Kind": "ingress",
+    "Type": "system",
+    "Subdomain": "*",
+    "Host": "",
+    "Upstream": "",
+    "Root": "",
+    "Args": null,
+    "WorkingDir": "",
+    "Env": null,
+    "Health": {
+      "Port": 443,
+      "HTTPURL": ""
+    }
+  },
+  "external": {
+    "DisplayName": "External",
+    "Kind": "proxy",
+    "Type": "proxy",
+    "Subdomain": "",
+    "Host": "external.acme-cdn.test",
+    "Upstream": "127.0.0.1:31000",
+    "Root": "",
+    "Args": null,
+    "WorkingDir": "",
+    "Env": null,
+    "Health": {
+      "Port": 31000,
+      "HTTPURL": ""
+    },
+    "url": "https://external.acme-cdn.test"
+  },
+  "internal-backend": {
+    "DisplayName": "Internal Backend",
+    "Kind": "backend",
+    "Type": "proxy",
+    "Subdomain": "",
+    "Host": "",
+    "Upstream": "127.0.0.1:31999",
+    "Root": "",
+    "Args": null,
+    "WorkingDir": "",
+    "Env": null,
+    "Health": {
+      "Port": 31999,
+      "HTTPURL": ""
+    }
+  }
+}

@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:home-stack:schemas:status:v1",
+  "title": "Home Stack Portal Status v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "generated_at", "overall_state", "services"],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "generated_at": { "type": "string", "format": "date-time" },
+    "overall_state": { "enum": ["healthy", "degraded", "unavailable", "unknown"] },
+    "services": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["state", "checked_at", "signals"],
+        "properties": {
+          "state": { "enum": ["healthy", "degraded", "unavailable", "unknown"] },
+          "checked_at": { "type": "string", "format": "date-time" },
+          "signals": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "process": { "enum": ["running", "scheduled", "stopped", "not_managed", "unknown"] },
+              "network": { "enum": ["reachable", "unreachable", "not_checked", "unknown"] },
+              "route": { "enum": ["ready", "missing", "not_applicable", "unknown"] },
+              "http": { "enum": ["healthy", "unhealthy", "not_checked", "unknown"] }
+            }
+          }
+        }
+      }
+    }
+  }
+}

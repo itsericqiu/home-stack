@@ -1,0 +1,11 @@
+{
+	auto_https off
+}
+
+https://127.0.0.1:31443 {
+	tls __HOME_STACK_TLS_DIR__/localhost.crt __HOME_STACK_TLS_DIR__/localhost.key
+	reverse_proxy 127.0.0.1:__HOME_STACK_OPENCHAMBER_PORT__
+	log {
+		output file __HOME_STACK_LOG_DIR__/phase-b-tls.log
+	}
+}

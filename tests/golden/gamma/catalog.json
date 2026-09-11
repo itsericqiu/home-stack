@@ -1,0 +1,144 @@
+{
+  "admin": {
+    "DisplayName": "Gamma Admin",
+    "Kind": "control",
+    "Type": "proxy",
+    "Subdomain": "admin",
+    "Host": "",
+    "Upstream": "127.0.0.1:33510",
+    "auth": "tailnet-or-sso",
+    "Root": "",
+    "Args": null,
+    "WorkingDir": "",
+    "Env": null,
+    "Health": {
+      "Port": 0,
+      "HTTPURL": ""
+    },
+    "url": "https://admin.home.gamma.test"
+  },
+  "caddy": {
+    "DisplayName": "Caddy Ingress",
+    "Kind": "ingress",
+    "Type": "system",
+    "Subdomain": "*",
+    "Host": "",
+    "Upstream": "",
+    "Root": "",
+    "Args": null,
+    "WorkingDir": "",
+    "Env": null,
+    "Health": {
+      "Port": 0,
+      "HTTPURL": ""
+    }
+  },
+  "gated-both": {
+    "DisplayName": "Gated Tailnet Or SSO",
+    "Kind": "app",
+    "Type": "proxy",
+    "Subdomain": "gated-both",
+    "Host": "",
+    "Upstream": "127.0.0.1:33603",
+    "auth": "tailnet-or-sso",
+    "Root": "",
+    "Args": null,
+    "WorkingDir": "",
+    "Env": null,
+    "Health": {
+      "Port": 0,
+      "HTTPURL": ""
+    },
+    "url": "https://gated-both.home.gamma.test"
+  },
+  "gated-none": {
+    "DisplayName": "Gated None",
+    "Kind": "app",
+    "Type": "proxy",
+    "Subdomain": "gated-none",
+    "Host": "",
+    "Upstream": "127.0.0.1:33604",
+    "auth": "none",
+    "Root": "",
+    "Args": null,
+    "WorkingDir": "",
+    "Env": null,
+    "Health": {
+      "Port": 0,
+      "HTTPURL": ""
+    },
+    "url": "https://gated-none.home.gamma.test"
+  },
+  "gated-split": {
+    "DisplayName": "Gated Split",
+    "Kind": "app",
+    "Type": "split",
+    "Subdomain": "gated-split",
+    "Host": "",
+    "Upstream": "127.0.0.1:33605",
+    "auth": "tailnet",
+    "Root": "~/gamma/dist",
+    "api_path": "/api,/ws",
+    "Args": null,
+    "WorkingDir": "",
+    "Env": null,
+    "Health": {
+      "Port": 0,
+      "HTTPURL": ""
+    },
+    "url": "https://gated-split.home.gamma.test"
+  },
+  "gated-sso": {
+    "DisplayName": "Gated SSO",
+    "Kind": "app",
+    "Type": "proxy",
+    "Subdomain": "gated-sso",
+    "Host": "",
+    "Upstream": "127.0.0.1:33602",
+    "auth": "sso",
+    "Root": "",
+    "Args": null,
+    "WorkingDir": "",
+    "Env": null,
+    "Health": {
+      "Port": 0,
+      "HTTPURL": ""
+    },
+    "url": "https://gated-sso.home.gamma.test"
+  },
+  "gated-tailnet": {
+    "DisplayName": "Gated Tailnet",
+    "Kind": "app",
+    "Type": "proxy",
+    "Subdomain": "gated-tailnet",
+    "Host": "",
+    "Upstream": "127.0.0.1:33601",
+    "auth": "tailnet",
+    "Root": "",
+    "Args": null,
+    "WorkingDir": "",
+    "Env": null,
+    "Health": {
+      "Port": 0,
+      "HTTPURL": ""
+    },
+    "url": "https://gated-tailnet.home.gamma.test"
+  },
+  "tinyauth": {
+    "DisplayName": "Tinyauth Broker",
+    "Kind": "auth",
+    "Type": "proxy",
+    "Subdomain": "auth",
+    "Host": "",
+    "Upstream": "127.0.0.1:33600",
+    "Root": "",
+    "Args": null,
+    "WorkingDir": "",
+    "Env": null,
+    "Health": {
+      "Port": 0,
+      "HTTPURL": ""
+    },
+    "url": "https://auth.home.gamma.test"
+  }
+}

@@ -1,0 +1,148 @@
+{
+	email admin@gamma.test
+	log {
+		level WARN
+	}
+}
+
+(cloudflare_tls) {
+	tls {
+		dns cloudflare {env.CLOUDFLARE_API_TOKEN}
+	}
+}
+
+*.home.gamma.test {
+	bind 100.64.0.44
+	import cloudflare_tls
+
+	@admin host admin.home.gamma.test
+	handle @admin {
+		@admin_tailnet remote_ip 100.64.0.0/10
+		handle @admin_tailnet {
+			tailscale_auth
+			reverse_proxy 127.0.0.1:33510 {
+				header_up X-Webauth-User {http.auth.user.tailscale_login}
+				header_up X-Webauth-Email {http.auth.user.tailscale_user}
+				header_up X-Webauth-Name {http.auth.user.tailscale_name}
+				header_up -Remote-User
+				header_up -Remote-Email
+				header_up -Remote-Groups
+				header_up -Remote-Name
+				header_up X-Home-Stack-Proxy-Auth {env.HOME_STACK_ADMIN_PROXY_SECRET}
+			}
+		}
+		handle {
+			forward_auth 127.0.0.1:33600 {
+				uri /api/auth/caddy
+				copy_headers Remote-User Remote-Email Remote-Groups Remote-Name
+			}
+			reverse_proxy 127.0.0.1:33510 {
+				header_up -X-Webauth-User
+				header_up -X-Webauth-Email
+				header_up -X-Webauth-Name
+				header_up X-Home-Stack-Proxy-Auth {env.HOME_STACK_ADMIN_PROXY_SECRET}
+			}
+		}
+	}
+
+	@gated_both host gated-both.home.gamma.test
+	handle @gated_both {
+		@gated_both_tailnet remote_ip 100.64.0.0/10
+		handle @gated_both_tailnet {
+			tailscale_auth
+			reverse_proxy 127.0.0.1:33603 {
+				header_up X-Webauth-User {http.auth.user.tailscale_login}
+				header_up X-Webauth-Email {http.auth.user.tailscale_user}
+				header_up X-Webauth-Name {http.auth.user.tailscale_name}
+				header_up -Remote-User
+				header_up -Remote-Email
+				header_up -Remote-Groups
+				header_up -Remote-Name
+			}
+		}
+		handle {
+			forward_auth 127.0.0.1:33600 {
+				uri /api/auth/caddy
+				copy_headers Remote-User Remote-Email Remote-Groups Remote-Name
+			}
+			reverse_proxy 127.0.0.1:33603 {
+				header_up -X-Webauth-User
+				header_up -X-Webauth-Email
+				header_up -X-Webauth-Name
+			}
+		}
+	}
+
+	@gated_none host gated-none.home.gamma.test
+	handle @gated_none {
+		reverse_proxy 127.0.0.1:33604
+	}
+
+	@gated_split host gated-split.home.gamma.test
+	handle @gated_split {
+		tailscale_auth
+		handle /api* {
+			reverse_proxy 127.0.0.1:33605 {
+				header_up X-Webauth-User {http.auth.user.tailscale_login}
+				header_up X-Webauth-Email {http.auth.user.tailscale_user}
+				header_up X-Webauth-Name {http.auth.user.tailscale_name}
+				header_up -Remote-User
+				header_up -Remote-Email
+				header_up -Remote-Groups
+				header_up -Remote-Name
+			}
+		}
+		handle /ws* {
+			reverse_proxy 127.0.0.1:33605 {
+				header_up X-Webauth-User {http.auth.user.tailscale_login}
+				header_up X-Webauth-Email {http.auth.user.tailscale_user}
+				header_up X-Webauth-Name {http.auth.user.tailscale_name}
+				header_up -Remote-User
+				header_up -Remote-Email
+				header_up -Remote-Groups
+				header_up -Remote-Name
+			}
+		}
+		handle {
+			root "__WORK__/owner-gamma/gamma/dist"
+			try_files {path} /index.html
+			file_server
+		}
+	}
+
+	@gated_sso host gated-sso.home.gamma.test
+	handle @gated_sso {
+		forward_auth 127.0.0.1:33600 {
+			uri /api/auth/caddy
+			copy_headers Remote-User Remote-Email Remote-Groups Remote-Name
+		}
+		reverse_proxy 127.0.0.1:33602 {
+			header_up -X-Webauth-User
+			header_up -X-Webauth-Email
+			header_up -X-Webauth-Name
+		}
+	}
+
+	@gated_tailnet host gated-tailnet.home.gamma.test
+	handle @gated_tailnet {
+		tailscale_auth
+		reverse_proxy 127.0.0.1:33601 {
+			header_up X-Webauth-User {http.auth.user.tailscale_login}
+			header_up X-Webauth-Email {http.auth.user.tailscale_user}
+			header_up X-Webauth-Name {http.auth.user.tailscale_name}
+			header_up -Remote-User
+			header_up -Remote-Email
+			header_up -Remote-Groups
+			header_up -Remote-Name
+		}
+	}
+
+	@tinyauth host auth.home.gamma.test
+	handle @tinyauth {
+		reverse_proxy 127.0.0.1:33600
+	}
+
+	handle {
+		abort
+	}
+}

@@ -1,0 +1,64 @@
+services:
+  caddy:
+    display_name: "Caddy Ingress"
+    kind: "ingress"
+    type: "system"
+    subdomain: "*"
+
+  admin:
+    display_name: "Beta Admin"
+    kind: "control"
+    type: "proxy"
+    upstream: "127.0.0.1:32510"
+    subdomain: admin
+
+  sub-wildcard:
+    display_name: "Sub Wildcard"
+    kind: "proxy"
+    type: "proxy"
+    upstream: "127.0.0.1:32001"
+    subdomain: "*.api"
+
+  multi-subdomain:
+    display_name: "Multi Subdomain"
+    kind: "proxy"
+    type: "proxy"
+    upstream: "127.0.0.1:32002"
+    subdomain: "blog"
+
+  static-site:
+    display_name: "Static Site"
+    kind: "proxy"
+    type: "static"
+    root: "~/Public/site"
+    subdomain: site
+
+  task-svc:
+    display_name: "Task Service"
+    kind: "task"
+    type: "task"
+    binary: "/usr/bin/true"
+
+  custom-svc:
+    display_name: "Custom Service"
+    kind: "proxy"
+    type: "proxy"
+    upstream: "127.0.0.1:32003"
+    subdomain: custom
+    binary: "/usr/local/bin/my-app"
+    args: ["--port", "32003", "--config", "~/config.json"]
+    env:
+      APP_MODE: "production"
+      LOG_LEVEL: "info"
+
+  hermes:
+    display_name: "Hermes Agent"
+    kind: "agent"
+    lifecycle: managed
+    type: "proxy"
+    upstream: "100.64.0.43:32511"
+    proxy_identity: upstream
+    subdomain: hermes
+    health:
+      port: 32511
+      http_url: "https://hermes.home.beta.test/api/status"

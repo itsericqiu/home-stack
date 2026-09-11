@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Home Stack Admin</title>
+  <link rel="stylesheet" href="/assets/app.css">
+</head>
+<body>
+  <div class="app">
+    <nav class="tabs" aria-label="Admin sections">
+      <button class="tab active" data-tab="triage">Triage</button><button class="tab" data-tab="services">Services</button><button class="tab" data-tab="deploy">Deploy</button><button class="tab" data-tab="events">Events</button><button class="tab" data-tab="doctor">Doctor</button>
+    </nav>
+    <main class="content"><div id="status-bar"></div><section id="triage" class="view active"></section><section id="services" class="view"></section><section id="deploy" class="view"></section><section id="events" class="view"></section><section id="doctor" class="view"></section></main>
+  </div>
+  <div id="sheet-backdrop" class="sheet-backdrop" onclick="closeSheet()"></div>
+  <aside id="sheet" class="sheet" aria-live="polite" aria-modal="true"></aside>
+  <script>
+    // Template-substituted values only; all application code lives in app.js.
+    const PARENT_DOMAIN={{.ParentDomain}};
+  </script>
+  <script src="/assets/app.js"></script>
+</body>
+</html>

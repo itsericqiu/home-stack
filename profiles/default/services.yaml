@@ -1,0 +1,125 @@
+# Starter service registry for a new home-stack profile.
+# This file is NEVER auto-loaded; it is copied to profiles/<name>/services.yaml
+# by `hs init`. Hosts compose against parent_domain via the `subdomain` field.
+
+services:
+  caddy:
+    display_name: "Caddy Ingress"
+    kind: "ingress"
+    type: "system"
+    subdomain: "*"
+    health:
+      port: 443
+
+  admin:
+    display_name: "Home Stack Admin"
+    kind: "control"
+    # lifecycle controls what the admin webapp may do to a service:
+    #   managed  — home-stack owns the launchd plist; start/stop/restart allowed
+    #   external — home-stack only provides the Caddy route; no operations
+    #   custom   — user-supplied plist; route-only for now
+    lifecycle: managed
+    type: "proxy"
+    upstream: "127.0.0.1:31510"
+    subdomain: admin
+    # auth gates this route at the ingress. One of:
+    #   none           — ungated (the default when the field is absent)
+    #   tailnet        — zero-click; resolves the caller's Tailscale identity
+    #   sso            — defers to the tinyauth broker's login
+    #   tailnet-or-sso — tailnet first, broker for anything off-tailnet
+    # Only meaningful for a routed service: auth cannot protect a loopback-only
+    # upstream, and setting it on one is rejected rather than silently ignored.
+    # See docs/SERVICE_INTERFACE.md.
+    auth: none
+    health:
+      port: 31510
+      http_url: "http://127.0.0.1:31510/api/health"
+
+  # Identity layer. Uncomment both to run self-hosted SSO; see docs/RUNBOOK.md
+  # for installing the pocket-id binary and building tinyauth from source.
+  # Both stay `auth: none` deliberately -- they ARE the login path, so gating
+  # them behind the broker they serve would deadlock it.
+  #
+  # pocket-id:
+  #   display_name: "Pocket ID"
+  #   kind: "auth"
+  #   lifecycle: managed
+  #   type: "proxy"
+  #   upstream: "127.0.0.1:31520"
+  #   subdomain: id
+  #   auth: none
+  #   health:
+  #     port: 31520
+  #     http_url: "http://127.0.0.1:31520/healthz"
+  #
+  # tinyauth:
+  #   display_name: "Tinyauth Broker"
+  #   kind: "auth"
+  #   lifecycle: managed
+  #   type: "proxy"
+  #   upstream: "127.0.0.1:31521"
+  #   subdomain: auth
+  #   auth: none
+  #   health:
+  #     port: 31521
+  #     http_url: "http://127.0.0.1:31521/healthz"
+
+  # Example service entries below. None of these ship a binary — each is
+  # the operator's to build or install; uncomment and adjust once you have
+  # it. See docs/SERVICE_INTERFACE.md for the full contract.
+  #
+  # Hermes: an externally-built agent app that home-stack only supervises
+  # and routes. Its Host/Origin rebinding guard requires `proxy_identity:
+  # upstream`, and — because pure-data registries never interpolate
+  # HOME_STACK_TAILNET_IP — the upstream below must be the profile's literal
+  # Tailnet IP, not loopback.
+  # hermes:
+  #   display_name: "Hermes Agent"
+  #   kind: "agent"
+  #   lifecycle: managed
+  #   type: "proxy"
+  #   upstream: "100.64.0.8:31511"
+  #   proxy_identity: upstream
+  #   subdomain: hermes
+  #   auth: tailnet
+  #   health:
+  #     port: 31511
+  #     http_url: "https://hermes.home.example.com/api/status"
+  #
+  # OpenCode: an internal backend with no Caddy route of its own — only
+  # OpenChamber (below) proxies to it directly, so it has no `subdomain`.
+  # opencode:
+  #   display_name: "OpenCode"
+  #   kind: "backend"
+  #   lifecycle: managed
+  #   type: "proxy"
+  #   upstream: "127.0.0.1:31496"
+  #   health:
+  #     port: 31496
+  #
+  # OpenChamber: the web UI in front of OpenCode, routed at its own
+  # subdomain.
+  # openchamber:
+  #   display_name: "OpenChamber"
+  #   kind: "proxy"
+  #   lifecycle: managed
+  #   type: "proxy"
+  #   upstream: "127.0.0.1:31497"
+  #   subdomain: opencode
+  #   health:
+  #     port: 31497
+  #
+  # Dev gateway: a wildcard dev-host proxy for local development domains.
+  # The binary builds from portable/home-stack/dev-gateway; left disabled
+  # by default since most operators don't need it.
+  # dev-gateway:
+  #   display_name: "Dev Gateway"
+  #   kind: "ingress"
+  #   lifecycle: managed
+  #   type: "proxy"
+  #   upstream: "127.0.0.1:31500"
+  #   subdomain: "*.dev"
+  #   auth: tailnet
+  #   enabled: false
+  #   health:
+  #     port: 31500

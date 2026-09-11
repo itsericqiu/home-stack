@@ -1,0 +1,25 @@
+#!/usr/bin/env bash
+# Attach local OpenCode TUI to the central home-stack OpenCode server.
+set -euo pipefail
+
+# Resolve the real path of this script even if invoked through a symlink
+SCRIPT_SOURCE="${BASH_SOURCE[0]:-$0}"
+while [ -h "$SCRIPT_SOURCE" ]; do
+  LINK="$(readlink "$SCRIPT_SOURCE")"
+  if [[ "$LINK" == /* ]]; then
+    SCRIPT_SOURCE="$LINK"
+  else
+    SCRIPT_SOURCE="$(dirname "$SCRIPT_SOURCE")/$LINK"
+  fi
+done
+SCRIPT_DIR="$(cd -- "$(dirname "$SCRIPT_SOURCE")" && pwd)"
+. "$SCRIPT_DIR/lib/common.sh"
+home_stack_load_env
+
+export PATH="$HOME_STACK_PATH"
+
+if [[ -n "${HOME_STACK_OPENCODE_SERVER_PASSWORD:-}" ]]; then
+  export OPENCODE_SERVER_PASSWORD="$HOME_STACK_OPENCODE_SERVER_PASSWORD"
+fi
+
+exec opencode attach "http://127.0.0.1:$HOME_STACK_OPENCODE_PORT" --dir "$PWD" "$@"
