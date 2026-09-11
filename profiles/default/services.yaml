@@ -123,3 +123,18 @@ services:
   #   enabled: false
   #   health:
   #     port: 31500
+
+  # Portal. The service MUST be named `portal`: the engine attaches the two
+  # sanitized projection routes (/.well-known/home-stack/catalog.json and
+  # status.json) to this name and no other. `root` is either the fallback page
+  # shipped in this repo or the built home-portal PWA
+  # (https://github.com/itsericqiu/home-portal, `dist/` after `npm run build`).
+  #
+  # portal:
+  #   display_name: "Portal"
+  #   kind: "static"
+  #   type: "static"
+  #   subdomain: portal
+  #   root: "~/github/home-stack/portable/home-stack/portal-www"   # or ~/github/home-portal/dist
+  #   health:
+  #     http_url: "https://portal.home.example.com/"
